@@ -3724,11 +3724,11 @@ GLushort teapotIndices[] = {
 };
 
 
-
+//GLuint* vbo_pos, GLuint* vbo_normal
 ///////////////////////////////////////////////////////////////////////////////
 // draw teapot using absolute pointers to indexed vertex array.
 ///////////////////////////////////////////////////////////////////////////////
-void drawTeapot(GLuint* vbo_pos, GLuint* vbo_normal)
+void drawTeapot()
 {
 	float shininess = 15.0f;
 	float diffuseColor[3] = {0.929524f, 0.796542f, 0.178823f};

@@ -157,36 +157,35 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
 
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
-        "uniform highp mat4 modelView;\n"
         "in highp vec3 vertexPosition;\n"
-	    "in highp vec3 vertexNorm;\n"
-        "varying highp vec3 vNorm"
+        "in highp vec2 vertexUv1;\n"
+        "varying vec2 vUV;"
         "void main( void )\n"
         "{\n"
-        "	gl_Position = vec4( vertexPosition, 1.0 ) * modelView;\n"
-        "	vNorm = vertexNorm;\n"
+        "	gl_Position = vec4( vertexPosition, 1.0 );\n"
+        "   vUV = vertexUv1;"
         "}\n";
 
 const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
-        "varying highp vNorm;\n"
+        "varying vec2 vUV;\n"
         "void main()\n"
         "{\n"
         //"	outColor = texture( Texture, fragmentUv1 );\n"
-        "	outColor = vec4(norm, 1.0);\n"
+        "	outColor = vec4(vUV.x, vUV.y, 1.0, 1.0);\n"
         "}\n";
 
-const GLfloat vertices[] = {
-     1.0,  1.0, 1.0,
-    -1.0,  1.0, 1.0,
+const GLfloat plane_vertices[] = {
     -1.0, -1.0, 1.0,
+     1.0, -1.0, 1.0,
+    -1.0,  1.0, 1.0,
 
-    -1.0, -1.0, 1.0,
-    -1.0,  1.0, 1.0,
-     1.0,  1.0, 1.0,
+     1.0, -1.0, 1.0,
+     1.0, 1.0, 1.0,
+    -1.0,  1.0, 1.0
 };
 
-const GLfloat normals[] = {
+const GLfloat plane_normals[] = {
     0.0, 0.0, 1.0,
     0.0, 0.0, 1.0,
     0.0, 0.0, 1.0,
@@ -195,14 +194,14 @@ const GLfloat normals[] = {
     0.0, 0.0, 1.0
 };
 
-const GLfloat uvs[] = {
-     1.0, 1.0,
-     0.0, 1.0,
-     0.0, 0.0,
-
+const GLfloat plane_uvs[] = {
      0.0, 0.0,
      1.0, 0.0,
-     1.0, 1.0
+     0.0, 1.0,
+
+     1.0, 0.0,
+     1.0, 1.0,
+     0.0, 1.0
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -210,6 +209,9 @@ const GLfloat uvs[] = {
 ///////////////////////////////////////////////////////////////////////////////
 void draw()
 {
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    /*
     glBindTexture(GL_TEXTURE_2D, textureId);
 
     glColor4f(1, 1, 1, 1);
@@ -282,6 +284,7 @@ void draw()
     glEnd();
 
     glBindTexture(GL_TEXTURE_2D, 0);
+    */
 }
 
 void BuildDistortionMeshes( mesh_coord_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
@@ -377,7 +380,7 @@ int main(int argc, char **argv)
         fboSupported = fboUsed = false;
         std::cout << "Video card does NOT support GL_ARB_framebuffer_object." << std::endl;
     }
-
+    
     if(fboSupported)
     {
         // create a framebuffer object, you need to delete them when program exits.
@@ -471,28 +474,19 @@ int initGLUT(int argc, char **argv)
 ///////////////////////////////////////////////////////////////////////////////
 void initGL()
 {
-    glShadeModel(GL_SMOOTH);                    // shading mathod: GL_SMOOTH or GL_FLAT
+    //glShadeModel(GL_SMOOTH);                    // shading mathod: GL_SMOOTH or GL_FLAT
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);      // 4-byte pixel alignment
 
     // enable /disable features
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_LIGHTING);
-    glEnable(GL_TEXTURE_2D);
     glEnable(GL_CULL_FACE);
-
-     // track material ambient and diffuse from surface color, call it before glEnable(GL_COLOR_MATERIAL)
-    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-    glEnable(GL_COLOR_MATERIAL);
 
     glClearColor(0, 0, 0, 0);                   // background color
     glClearStencil(0);                          // clear stencil buffer
     glClearDepth(1.0f);                         // 0 is near, 1 is far
     glDepthFunc(GL_LEQUAL);
 
-    initLights();
+    //initLights();
 
     glGenVertexArrays(1, &vao);
 
@@ -504,28 +498,27 @@ void initGL()
 
     // Config position vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
 
     // Config uv vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), uvs, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_uvs, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(1);
 
     // Config normal vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_norm);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), uvs, GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(1);
+    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_normals, GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    //glEnableVertexAttribArray(2);
 
 
     GLint result;
     tw_vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    GLint vshader_len = strlen(timeWarpSpatialVertexProgramGLSL);
-
-    glShaderSource(tw_vertex_shader, 1, &timeWarpSpatialVertexProgramGLSL, &vshader_len);
+    GLint vshader_len = strlen(basicVertexShader);
+    glShaderSource(tw_vertex_shader, 1, &basicVertexShader, &vshader_len);
     glCompileShader(tw_vertex_shader);
     glGetShaderiv(tw_vertex_shader, GL_COMPILE_STATUS, &result);
     if ( result == GL_FALSE )
@@ -538,8 +531,8 @@ void initGL()
 
 
     tw_frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    GLint fshader_len = strlen(timeWarpSpatialFragmentProgramGLSL);
-    glShaderSource(tw_vertex_shader, 1, &timeWarpSpatialFragmentProgramGLSL, &fshader_len);
+    GLint fshader_len = strlen(basicFragmentShader);
+    glShaderSource(tw_vertex_shader, 1, &basicFragmentShader, &fshader_len);
     glCompileShader(tw_frag_shader);
 
     glGetShaderiv(tw_frag_shader, GL_COMPILE_STATUS, &result);
@@ -558,6 +551,8 @@ void initGL()
 
     glBindAttribLocation(tw_shader_program, 0, "vertexPosition");
     glBindAttribLocation(tw_shader_program, 1, "vertexUv1");
+
+    printf("Successfully bound attrib locations\n");
 
 
     glLinkProgram(tw_shader_program);
@@ -581,6 +576,7 @@ void initGL()
 ///////////////////////////////////////////////////////////////////////////////
 void drawString(const char *str, int x, int y, float color[4], void *font)
 {
+    /*
     glPushAttrib(GL_LIGHTING_BIT | GL_CURRENT_BIT); // lighting and color mask
     glDisable(GL_LIGHTING);     // need to disable lighting for proper text color
     glDisable(GL_TEXTURE_2D);
@@ -598,6 +594,7 @@ void drawString(const char *str, int x, int y, float color[4], void *font)
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_LIGHTING);
     glPopAttrib();
+    */
 }
 
 
@@ -607,6 +604,7 @@ void drawString(const char *str, int x, int y, float color[4], void *font)
 ///////////////////////////////////////////////////////////////////////////////
 void drawString3D(const char *str, float pos[3], float color[4], void *font)
 {
+    /*
     glPushAttrib(GL_LIGHTING_BIT | GL_CURRENT_BIT); // lighting and color mask
     glDisable(GL_LIGHTING);     // need to disable lighting for proper text color
     glDisable(GL_TEXTURE_2D);
@@ -624,6 +622,7 @@ void drawString3D(const char *str, float pos[3], float color[4], void *font)
     glDisable(GL_TEXTURE_2D);
     glEnable(GL_LIGHTING);
     glPopAttrib();
+    /*
 }
 
 
@@ -1285,7 +1284,7 @@ void displayCB()
     // camera transform
     glLoadIdentity();
     glTranslatef(0, 0, -CAMERA_DISTANCE);
-
+    /*
     // with FBO
     // render directly to a texture
     if(fboUsed)
@@ -1303,7 +1302,7 @@ void displayCB()
         glRotatef(angle, 0, 1, 0);
         glRotatef(angle*0.7f, 0, 0, 1);
         glTranslatef(0, -1.575f, 0);
-        drawTeapot();
+        //drawTeapot();
         glPopMatrix();
 
         // back to normal window-system-provided framebuffer
@@ -1336,7 +1335,7 @@ void displayCB()
         glRotatef(angle, 0, 1, 0);
         glRotatef(angle*0.7f, 0, 0, 1);
         glTranslatef(0, -1.575f, 0);
-        drawTeapot();
+        //drawTeapot();
         glPopMatrix();
 
         // copy the framebuffer pixels to a texture
@@ -1346,6 +1345,7 @@ void displayCB()
 
         glPopAttrib(); // GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT
     }
+    */
 
     // measure the elapsed time of render-to-texture
     t1.stop();
@@ -1357,16 +1357,16 @@ void displayCB()
 
     // back to normal viewport and projection matrix
     glViewport(0, 0, screenWidth, screenHeight);
-    //glMatrixMode(GL_PROJECTION);
-    //glLoadIdentity();
-    //gluPerspective(60.0f, (float)(screenWidth)/screenHeight, 1.0f, 100.0f);
-    //glMatrixMode(GL_MODELVIEW);
-    //glLoadIdentity();
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(60.0f, (float)(screenWidth)/screenHeight, 1.0f, 100.0f);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
 
     // tramsform camera
-    //glTranslatef(0, 0, -cameraDistance);
-    //glRotatef(cameraAngleX, 1, 0, 0);   // pitch
-    //glRotatef(cameraAngleY, 0, 1, 0);   // heading
+    glTranslatef(0, 0, -cameraDistance);
+    glRotatef(cameraAngleX, 1, 0, 0);   // pitch
+    glRotatef(cameraAngleY, 0, 1, 0);   // heading
 
     // clear framebuffer
     glClearColor(0, 0, 0, 0);
