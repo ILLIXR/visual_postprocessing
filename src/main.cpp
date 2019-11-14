@@ -21,6 +21,7 @@
 #include <GLUT/glut.h>
 #else
 #include <GL/glut.h>
+#include <GL/freeglut.h>
 #endif
 
 #include <iostream>
@@ -44,7 +45,7 @@ using std::ends;
 
 #define OPENGL_VERSION_MAJOR	4
 #define OPENGL_VERSION_MINOR	3
-#define GLSL_VERSION			"430"
+#define GLSL_VERSION			"430 core"
 #define GLSL_EXTENSIONS     	"#extension GL_EXT_shader_io_blocks : enable\n"
 
 
@@ -117,6 +118,8 @@ GLuint tw_vertex_shader;
 GLuint tw_frag_shader;
 GLuint tw_shader_program;
 
+GLint textureLocation;
+
 GLuint vao;
 GLuint vbo_pos;
 GLuint vbo_norm;
@@ -144,8 +147,6 @@ const char* const timeWarpSpatialVertexProgramGLSL =
         "}\n";
 
 const char* const timeWarpSpatialFragmentProgramGLSL =
-    "#version " GLSL_VERSION "\n"
-    GLSL_EXTENSIONS
     "uniform highp sampler2D Texture;\n"
     "in mediump vec2 fragmentUv1;\n"
     "out lowp vec4 outColor;\n"
@@ -157,32 +158,52 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
 
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
-        "in highp vec3 vertexPosition;\n"
-        "in highp vec2 vertexUv1;\n"
-        "varying vec2 vUV;"
-        "void main( void )\n"
+        "in vec3 vertexPosition;\n"
+        "in vec2 vertexUv1;"
+        "out vec3 vPos;\n"
+        "out vec2 vUv;"
+        "void main()\n"
         "{\n"
         "	gl_Position = vec4( vertexPosition, 1.0 );\n"
-        "   vUV = vertexUv1;"
+        "   vPos = vertexPosition;\n"
+        "   vUv = vertexUv1;\n"
         "}\n";
 
 const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
-        "varying vec2 vUV;\n"
+        "uniform highp sampler2D Texture;\n"
+        "uniform float override;\n"
+        "in vec3 vPos;\n"
+        "in vec2 vUv;\n"
+        "out vec4 outcolor;\n"
         "void main()\n"
         "{\n"
-        //"	outColor = texture( Texture, fragmentUv1 );\n"
-        "	outColor = vec4(vUV.x, vUV.y, 1.0, 1.0);\n"
+        "   if(override > 0.5)\n"
+        "       outcolor = vec4(vUv.x, vUv.y, 1.0, 1.0);\n"
+        "   else\n"
+        "	    outcolor = texture( Texture, vUv );\n"
+        //"	outcolor = vec4(vUv.x, vUv.y, 1.0, 1.0);\n"
         "}\n";
 
-const GLfloat plane_vertices[] = {
-    -1.0, -1.0, 1.0,
-     1.0, -1.0, 1.0,
-    -1.0,  1.0, 1.0,
 
-     1.0, -1.0, 1.0,
-     1.0, 1.0, 1.0,
-    -1.0,  1.0, 1.0
+const GLfloat plane_vertices[] = {
+    -0.9, -0.9, 0.0,
+     0.9, -0.9, 0.0,
+    -0.9,  0.9, 0.0,
+
+     0.9, -0.9, 0.0,
+     0.9, 0.9, -0.0,
+    -0.9,  0.9, 0.0
+};
+
+const GLfloat small_plane_vertices[] = {
+    -0.1, -0.1, 0.0,
+     0.1, -0.1, 0.0,
+    -0.1,  0.1, 0.0,
+
+     0.1, -0.1, 0.0,
+     0.1, 0.1, -0.0,
+    -0.1,  0.1, 0.0
 };
 
 const GLfloat plane_normals[] = {
@@ -209,6 +230,7 @@ const GLfloat plane_uvs[] = {
 ///////////////////////////////////////////////////////////////////////////////
 void draw()
 {
+    
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     /*
@@ -351,9 +373,19 @@ int main(int argc, char **argv)
     initGLUT(argc, argv);
     initGL();
 
+    if(glGetError()){
+        printf("main, error after initGL");
+    }
+
     // create a texture object
     glGenTextures(1, &textureId);
+    if(glGetError()){
+        printf("main, error after glGenTextures");
+    }
     glBindTexture(GL_TEXTURE_2D, textureId);
+    if(glGetError()){
+        printf("main, gl error");
+    }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
@@ -365,60 +397,45 @@ int main(int argc, char **argv)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    // get OpenGL info
-    glInfo glInfo;
-    glInfo.getInfo();
-    glInfo.printSelf();
+    // create a framebuffer object, you need to delete them when program exits.
+    glGenFramebuffers(1, &fboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
 
-    if(glInfo.isExtensionSupported("GL_ARB_framebuffer_object"))
-    {
-        fboSupported = fboUsed = true;
-        std::cout << "Video card supports GL_ARB_framebuffer_object." << std::endl;
-    }
-    else
-    {
-        fboSupported = fboUsed = false;
-        std::cout << "Video card does NOT support GL_ARB_framebuffer_object." << std::endl;
-    }
-    
-    if(fboSupported)
-    {
-        // create a framebuffer object, you need to delete them when program exits.
-        glGenFramebuffers(1, &fboId);
-        glBindFramebuffer(GL_FRAMEBUFFER, fboId);
+    // create a renderbuffer object to store depth info
+    // NOTE: A depth renderable image should be attached the FBO for depth test.
+    // If we don't attach a depth renderable image to the FBO, then
+    // the rendering output will be corrupted because of missing depth test.
+    // If you also need stencil test for your rendering, then you must
+    // attach additional image to the stencil attachement point, too.
+    glGenRenderbuffers(1, &rboDepthId);
+    glBindRenderbuffer(GL_RENDERBUFFER, rboDepthId);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+    //glRenderbufferStorageMultisample(GL_RENDERBUFFER, fboSampleCount, GL_DEPTH_COMPONENT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-        // create a renderbuffer object to store depth info
-        // NOTE: A depth renderable image should be attached the FBO for depth test.
-        // If we don't attach a depth renderable image to the FBO, then
-        // the rendering output will be corrupted because of missing depth test.
-        // If you also need stencil test for your rendering, then you must
-        // attach additional image to the stencil attachement point, too.
-        glGenRenderbuffers(1, &rboDepthId);
-        glBindRenderbuffer(GL_RENDERBUFFER, rboDepthId);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-        //glRenderbufferStorageMultisample(GL_RENDERBUFFER, fboSampleCount, GL_DEPTH_COMPONENT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    // attach a texture to FBO color attachement point
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
+    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
 
-        // attach a texture to FBO color attachement point
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
-        //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
+    // attach a renderbuffer to depth attachment point
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);
 
-        // attach a renderbuffer to depth attachment point
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);
+    //@@ disable color buffer if you don't attach any color buffer image,
+    //@@ for example, rendering the depth buffer only to a texture.
+    //@@ Otherwise, glCheckFramebufferStatus will not be complete.
+    //glDrawBuffer(GL_NONE);
+    //glReadBuffer(GL_NONE);
 
-        //@@ disable color buffer if you don't attach any color buffer image,
-        //@@ for example, rendering the depth buffer only to a texture.
-        //@@ Otherwise, glCheckFramebufferStatus will not be complete.
-        //glDrawBuffer(GL_NONE);
-        //glReadBuffer(GL_NONE);
+    // check FBO status
+    printFramebufferInfo(fboId);
+    bool status = checkFramebufferStatus(fboId);
+    if(!status)
+        fboUsed = false;
 
-        // check FBO status
-        printFramebufferInfo(fboId);
-        bool status = checkFramebufferStatus(fboId);
-        if(!status)
-            fboUsed = false;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if(glGetError()){
+        printf("main, error after fbo things");
     }
 
     // start timer, the elapsed time will be used for rotating the teapot
@@ -449,6 +466,11 @@ int initGLUT(int argc, char **argv)
 
     glutInitWindowPosition(100, 100);                           // window location
 
+    glutInitContextVersion(4, 3);
+    glutInitContextProfile( GLUT_CORE_PROFILE );
+
+
+
     // finally, create a window with openGL context
     // Window will not displayed until glutMainLoop() is called
     // It returns a unique ID.
@@ -459,7 +481,7 @@ int initGLUT(int argc, char **argv)
     //glutTimerFunc(33, timerCB, 33);             // redraw only every given millisec
     glutIdleFunc(idleCB);                       // redraw whenever system is idle
     glutReshapeFunc(reshapeCB);
-    glutKeyboardFunc(keyboardCB);
+    //glutKeyboardFunc(keyboardCB);
     glutMouseFunc(mouseCB);
     glutMotionFunc(mouseMotionCB);
 
@@ -475,11 +497,11 @@ int initGLUT(int argc, char **argv)
 void initGL()
 {
     //glShadeModel(GL_SMOOTH);                    // shading mathod: GL_SMOOTH or GL_FLAT
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);      // 4-byte pixel alignment
+    //glPixelStorei(GL_UNPACK_ALIGNMENT, 4);      // 4-byte pixel alignment
 
     // enable /disable features
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_DEPTH_TEST);
+    //glEnable(GL_CULL_FACE);
 
     glClearColor(0, 0, 0, 0);                   // background color
     glClearStencil(0);                          // clear stencil buffer
@@ -496,11 +518,19 @@ void initGL()
 
     glGenBuffers(1, &vbo_uv);
 
+    if(glGetError()){
+        printf("GenBuffers or bindvertex array failed\n");
+    }
+
     // Config position vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
     glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
+
+    if(glGetError()){
+        printf("something in position buffer failed\n");
+    }
 
     // Config uv vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
@@ -508,19 +538,36 @@ void initGL()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(1);
 
+    if(glGetError()){
+        printf("Uv buffer failed\n");
+    }
+
     // Config normal vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_norm);
-    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_normals, GL_STATIC_DRAW);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    //glBindBuffer(GL_ARRAY_BUFFER, vbo_norm);
+    //glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_normals, GL_STATIC_DRAW);
+    //glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
     //glEnableVertexAttribArray(2);
-
-
+    
     GLint result;
     tw_vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+
+    
+    if(glGetError()){
+        printf("glCreateShader for vertex shader failed\n");
+    }
     GLint vshader_len = strlen(basicVertexShader);
     glShaderSource(tw_vertex_shader, 1, &basicVertexShader, &vshader_len);
+    if(glGetError()){
+        printf("shaderSource for vertex shader failed\n");
+    }
     glCompileShader(tw_vertex_shader);
+    if(glGetError()){
+        printf("compileShader for vertex shader failed\n");
+    }
     glGetShaderiv(tw_vertex_shader, GL_COMPILE_STATUS, &result);
+    if(glGetError()){
+        printf("aaaah!\n");
+    }
     if ( result == GL_FALSE )
 	{
 		GLchar msg[4096];
@@ -529,35 +576,63 @@ void initGL()
 		printf( "Error: %s\n", msg);
 	}
 
-
+    GLint fragResult = GL_FALSE;
     tw_frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    if(glGetError()){
+        printf("createShader for fragment shader failed\n");
+    }
     GLint fshader_len = strlen(basicFragmentShader);
-    glShaderSource(tw_vertex_shader, 1, &basicFragmentShader, &fshader_len);
+    glShaderSource(tw_frag_shader, 1, &basicFragmentShader, &fshader_len);
+    if(glGetError()){
+        printf("shaderSource for fragment shader failed\n");
+    }
     glCompileShader(tw_frag_shader);
-
-    glGetShaderiv(tw_frag_shader, GL_COMPILE_STATUS, &result);
-    if ( result == GL_FALSE )
+    if(glGetError()){
+        printf("compileShader for fragshader failed\n");
+    }
+    glGetShaderiv(tw_frag_shader, GL_COMPILE_STATUS, &fragResult);
+    if ( fragResult == GL_FALSE )
 	{
-		GLchar msg[4096];
-		GLsizei length;
-		glGetShaderInfoLog( tw_frag_shader, sizeof( msg ), &length, msg );
-		printf( "Error: %s\n", msg);
+        GLchar msg[4096];
+        GLsizei length;
+        glGetShaderInfoLog( tw_frag_shader, sizeof( msg ), &length, msg );
+        printf( "Error: %s\n", msg);
+		
 	}
+    
 
     tw_shader_program = glCreateProgram();
     glAttachShader(tw_shader_program, tw_vertex_shader);
     glAttachShader(tw_shader_program, tw_frag_shader);
 
+    if(glGetError()){
+        printf("AttachShader or createProgram failed\n");
+    }
+
 
     glBindAttribLocation(tw_shader_program, 0, "vertexPosition");
     glBindAttribLocation(tw_shader_program, 1, "vertexUv1");
 
-    printf("Successfully bound attrib locations\n");
+    if(glGetError()){
+        printf("Binding attributes failed\n");
+    } else {
+        printf("Successfully bound attrib locations\n");
+    }
+
 
 
     glLinkProgram(tw_shader_program);
 
-    glGetShaderiv(tw_shader_program, GL_LINK_STATUS, &result);
+    if(glGetError()){
+        printf("Linking failed\n");
+    }
+
+    glGetProgramiv(tw_shader_program, GL_LINK_STATUS, &result);
+
+    GLenum err = glGetError();
+    if(err){
+        printf("initGL, error getting link status, %x", err);
+    }
     if ( result == GL_FALSE )
 	{
 		GLchar msg[4096];
@@ -566,63 +641,12 @@ void initGL()
 		printf( "Error: %s\n", msg);
 	}
 
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// write 2d text using GLUT
-// The projection matrix must be set to orthogonal before call this function.
-///////////////////////////////////////////////////////////////////////////////
-void drawString(const char *str, int x, int y, float color[4], void *font)
-{
-    /*
-    glPushAttrib(GL_LIGHTING_BIT | GL_CURRENT_BIT); // lighting and color mask
-    glDisable(GL_LIGHTING);     // need to disable lighting for proper text color
-    glDisable(GL_TEXTURE_2D);
-
-    glColor4fv(color);          // set text color
-    glRasterPos2i(x, y);        // place text position
-
-    // loop all characters in the string
-    while(*str)
-    {
-        glutBitmapCharacter(font, *str);
-        ++str;
+    if(glGetError()){
+        printf("initGL, error at end of initGL");
     }
 
-    glEnable(GL_TEXTURE_2D);
-    glEnable(GL_LIGHTING);
-    glPopAttrib();
-    */
-}
+    return;
 
-
-
-///////////////////////////////////////////////////////////////////////////////
-// draw a string in 3D space
-///////////////////////////////////////////////////////////////////////////////
-void drawString3D(const char *str, float pos[3], float color[4], void *font)
-{
-    /*
-    glPushAttrib(GL_LIGHTING_BIT | GL_CURRENT_BIT); // lighting and color mask
-    glDisable(GL_LIGHTING);     // need to disable lighting for proper text color
-    glDisable(GL_TEXTURE_2D);
-
-    glColor4fv(color);          // set text color
-    glRasterPos3fv(pos);        // place text position
-
-    // loop all characters in the string
-    while(*str)
-    {
-        glutBitmapCharacter(font, *str);
-        ++str;
-    }
-
-    glDisable(GL_TEXTURE_2D);
-    glEnable(GL_LIGHTING);
-    glPopAttrib();
-    /*
 }
 
 
@@ -669,137 +693,6 @@ void clearSharedMem()
         glDeleteRenderbuffers(1, &rboDepthId);
         rboDepthId = 0;
     }
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// initialize lights
-///////////////////////////////////////////////////////////////////////////////
-void initLights()
-{
-    // set up light colors (ambient, diffuse, specular)
-    GLfloat lightKa[] = {.2f, .2f, .2f, 1.0f};  // ambient light
-    GLfloat lightKd[] = {.7f, .7f, .7f, 1.0f};  // diffuse light
-    GLfloat lightKs[] = {1, 1, 1, 1};           // specular light
-    glLightfv(GL_LIGHT0, GL_AMBIENT, lightKa);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightKd);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, lightKs);
-
-    // position the light
-    float lightPos[4] = {0, 0, 20, 1}; // positional light
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
-
-    glEnable(GL_LIGHT0);                        // MUST enable each light source after configuration
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// set camera position and lookat direction
-///////////////////////////////////////////////////////////////////////////////
-void setCamera(float posX, float posY, float posZ, float targetX, float targetY, float targetZ)
-{
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    gluLookAt(posX, posY, posZ, targetX, targetY, targetZ, 0, 1, 0); // eye(x,y,z), focal(x,y,z), up(x,y,z)
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// display info messages
-///////////////////////////////////////////////////////////////////////////////
-void showInfo()
-{
-    // backup current model-view matrix
-    glPushMatrix();                     // save current modelview matrix
-    glLoadIdentity();                   // reset modelview matrix
-
-    // set to 2D orthogonal projection
-    glMatrixMode(GL_PROJECTION);        // switch to projection matrix
-    glPushMatrix();                     // save current projection matrix
-    glLoadIdentity();                   // reset projection matrix
-    gluOrtho2D(0, screenWidth, 0, screenHeight);  // set to orthogonal projection
-
-    float color[4] = {1, 1, 1, 1};
-
-    stringstream ss;
-    ss << "FBO: ";
-    if(fboUsed)
-        ss << "on" << ends;
-    else
-        ss << "off" << ends;
-
-    drawString(ss.str().c_str(), 1, screenHeight-TEXT_HEIGHT, color, font);
-    ss.str(""); // clear buffer
-
-    ss << std::fixed << std::setprecision(3);
-    ss << "Render-To-Texture Time: " << renderToTextureTime << " ms" << ends;
-    drawString(ss.str().c_str(), 1, screenHeight-(2*TEXT_HEIGHT), color, font);
-    ss.str("");
-
-    ss << "Press SPACE to toggle FBO." << ends;
-    drawString(ss.str().c_str(), 1, 1, color, font);
-
-    // unset floating format
-    ss << std::resetiosflags(std::ios_base::fixed | std::ios_base::floatfield);
-
-    // restore projection matrix
-    glPopMatrix();                   // restore to previous projection matrix
-
-    // restore modelview matrix
-    glMatrixMode(GL_MODELVIEW);      // switch to modelview matrix
-    glPopMatrix();                   // restore to previous modelview matrix
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// display frame rates
-///////////////////////////////////////////////////////////////////////////////
-void showFPS()
-{
-    static Timer timer;
-    static int count = 0;
-    static std::string fps = "0.0 FPS";
-    double elapsedTime = 0.0;;
-
-    ++count;
-
-    // backup current model-view matrix
-    glPushMatrix();                     // save current modelview matrix
-    glLoadIdentity();                   // reset modelview matrix
-
-    // set to 2D orthogonal projection
-    glMatrixMode(GL_PROJECTION);        // switch to projection matrix
-    glPushMatrix();                     // save current projection matrix
-    glLoadIdentity();                   // reset projection matrix
-    gluOrtho2D(0, screenWidth, 0, screenHeight); // set to orthogonal projection
-
-    float color[4] = {1, 1, 0, 1};
-
-    // update fps every second
-    elapsedTime = timer.getElapsedTime();
-    if(elapsedTime >= 1.0)
-    {
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(1);
-        ss << (count / elapsedTime) << " FPS" << std::ends; // update fps string
-        ss << std::resetiosflags(std::ios_base::fixed | std::ios_base::floatfield);
-        fps = ss.str();
-        count = 0;                      // reset counter
-        timer.start();                  // restart timer
-    }
-    int textWidth = (int)fps.size() * TEXT_WIDTH;
-    drawString(fps.c_str(), screenWidth-textWidth, screenHeight-TEXT_HEIGHT, color, font);
-
-    // restore projection matrix
-    glPopMatrix();                      // restore to previous projection matrix
-
-    // restore modelview matrix
-    glMatrixMode(GL_MODELVIEW);         // switch to modelview matrix
-    glPopMatrix();                      // restore to previous modelview matrix
 }
 
 
@@ -1275,77 +1168,67 @@ void displayCB()
     t1.start();
 
     // adjust viewport and projection matrix to texture dimension
-    glViewport(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(60.0f, (float)(TEXTURE_WIDTH)/TEXTURE_HEIGHT, 1.0f, 100.0f);
-    glMatrixMode(GL_MODELVIEW);
+    //glViewport(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+    //glMatrixMode(GL_PROJECTION);
+    //glLoadIdentity();
+    //gluPerspective(60.0f, (float)(TEXTURE_WIDTH)/TEXTURE_HEIGHT, 1.0f, 100.0f);
+    //glMatrixMode(GL_MODELVIEW);
+    GLenum err = glGetError();
+    if(err){
+        printf("displayCB, error after old perspective setup, %x", err);
+    }
 
     // camera transform
-    glLoadIdentity();
-    glTranslatef(0, 0, -CAMERA_DISTANCE);
-    /*
+    //glLoadIdentity();
+    //glTranslatef(0, 0, -CAMERA_DISTANCE);
+
+    if(glGetError()){
+        printf("displayCB, error after translate setup");
+    }
+
+    
     // with FBO
     // render directly to a texture
-    if(fboUsed)
-    {
-        // set the rendering destination to FBO
-        glBindFramebuffer(GL_FRAMEBUFFER, fboId);
+    // set the rendering destination to FBO
+    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
 
-        // clear buffer
-        glClearColor(1, 1, 1, 1);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // draw a rotating teapot at the origin
-        glPushMatrix();
-        glRotatef(angle*0.5f, 1, 0, 0);
-        glRotatef(angle, 0, 1, 0);
-        glRotatef(angle*0.7f, 0, 0, 1);
-        glTranslatef(0, -1.575f, 0);
-        //drawTeapot();
-        glPopMatrix();
-
-        // back to normal window-system-provided framebuffer
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); // unbind
-
-        // trigger mipmaps generation explicitly
-        // NOTE: If GL_GENERATE_MIPMAP is set to GL_TRUE, then glCopyTexSubImage2D()
-        // triggers mipmap generation automatically. However, the texture attached
-        // onto a FBO should generate mipmaps manually via glGenerateMipmap().
-        glBindTexture(GL_TEXTURE_2D, textureId);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, 0);
+    if(glGetError()){
+        printf("displayCB, error after binding FBO for render");
     }
 
-    // without FBO
-    // render to the backbuffer and copy the backbuffer to a texture
-    else
-    {
-        // clear buffer
-        glClearColor(1, 1, 1, 1);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // clear buffer
+    glClearColor(1, 1, 1, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glUseProgram(tw_shader_program);
 
-        glPushAttrib(GL_COLOR_BUFFER_BIT | GL_PIXEL_MODE_BIT); // for GL_DRAW_BUFFER and GL_READ_BUFFER
-        glDrawBuffer(GL_BACK);
-        glReadBuffer(GL_BACK);
+    glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 1.0);
 
-        // draw a rotating teapot at the origin
-        glPushMatrix();
-        glRotatef(angle*0.5f, 1, 0, 0);
-        glRotatef(angle, 0, 1, 0);
-        glRotatef(angle*0.7f, 0, 0, 1);
-        glTranslatef(0, -1.575f, 0);
-        //drawTeapot();
-        glPopMatrix();
+    // Config position vbo
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
+    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), small_plane_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(0);
 
-        // copy the framebuffer pixels to a texture
-        glBindTexture(GL_TEXTURE_2D, textureId);
-        glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        glPopAttrib(); // GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT
+    if(glGetError()){
+        printf("something in position buffer failed\n");
     }
-    */
+
+    draw();
+
+    // back to normal window-system-provided framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // unbind
+
+    if(glGetError()){
+        printf("displayCB, error after unbinding FBO after render");
+    }
+
+    // trigger mipmaps generation explicitly
+    // NOTE: If GL_GENERATE_MIPMAP is set to GL_TRUE, then glCopyTexSubImage2D()
+    // triggers mipmap generation automatically. However, the texture attached
+    // onto a FBO should generate mipmaps manually via glGenerateMipmap().
+    glBindTexture(GL_TEXTURE_2D, textureId);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     // measure the elapsed time of render-to-texture
     t1.stop();
@@ -1357,31 +1240,52 @@ void displayCB()
 
     // back to normal viewport and projection matrix
     glViewport(0, 0, screenWidth, screenHeight);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(60.0f, (float)(screenWidth)/screenHeight, 1.0f, 100.0f);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    //glMatrixMode(GL_PROJECTION);
+    //glLoadIdentity();
+    //gluPerspective(60.0f, (float)(screenWidth)/screenHeight, 1.0f, 100.0f);
+    //glMatrixMode(GL_MODELVIEW);
+    //glLoadIdentity();
+    if(glGetError()){
+        printf("displayCB, error after viewport setup");
+    }
 
     // tramsform camera
-    glTranslatef(0, 0, -cameraDistance);
-    glRotatef(cameraAngleX, 1, 0, 0);   // pitch
-    glRotatef(cameraAngleY, 0, 1, 0);   // heading
+    //glTranslatef(0, 0, -cameraDistance);
+    //glRotatef(cameraAngleX, 1, 0, 0);   // pitch
+    //glRotatef(cameraAngleY, 0, 1, 0);   // heading
 
     // clear framebuffer
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glPushMatrix();
+    //glPushMatrix();
 
-    // draw a cube with the dynamic texture
+    if(glGetError()){
+        printf("displayCB, error before draw");
+    }
+
+    glUseProgram(tw_shader_program);
+    // Config position vbo
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
+    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(0);
+
+    glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 0.0);
+
+    glBindTexture(GL_TEXTURE_2D, textureId);
+
     draw();
 
-    glPopMatrix();
+    if(glGetError()){
+        printf("displayCB, error after draw");
+    }
+
+    //glPopMatrix();
 
     // draw info messages
-    showInfo();
-    showFPS();
+    //showInfo();
+    //showFPS();
     glutSwapBuffers();
 }
 
