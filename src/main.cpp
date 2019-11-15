@@ -92,6 +92,8 @@ const int   TEXT_WIDTH      = 8;
 const int   TEXT_HEIGHT     = 13;
 const int   TEXTURE_WIDTH   = 256;  // NOTE: texture size cannot be larger than
 const int   TEXTURE_HEIGHT  = 256;  // the rendering window size in non-FBO mode
+const int   NUM_EYES        = 2;
+const int   NUM_COLOR_CHANNELS = 3;
 
 // global variables
 GLuint fboId;                       // ID of FBO
@@ -124,6 +126,19 @@ GLuint vao;
 GLuint vbo_pos;
 GLuint vbo_norm;
 GLuint vbo_uv;
+
+hmd_info_t hmd_info;
+body_info_t body_info;
+
+mesh_coord2d_t* tw_mesh_base_ptr;
+
+mesh_coord3d_t* distortion_positions;
+GLuint* distortion_indices;
+uv_coord_t* distortion_uv0;
+uv_coord_t* distortion_uv1;
+uv_coord_t* distortion_uv2;
+
+
 
 const char* const timeWarpSpatialVertexProgramGLSL =
         "#version " GLSL_VERSION "\n"
@@ -158,13 +173,13 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
 
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
-        "in vec3 vertexPosition;\n"
+        "in vec2 vertexPosition;\n"
         "in vec2 vertexUv1;"
-        "out vec3 vPos;\n"
+        "out vec2 vPos;\n"
         "out vec2 vUv;"
         "void main()\n"
         "{\n"
-        "	gl_Position = vec4( vertexPosition, 1.0 );\n"
+        "	gl_Position = vec4( vertexPosition.x, vertexPosition.y, 0.0, 1.0 );\n"
         "   vPos = vertexPosition;\n"
         "   vUv = vertexUv1;\n"
         "}\n";
@@ -173,7 +188,7 @@ const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
         "uniform highp sampler2D Texture;\n"
         "uniform float override;\n"
-        "in vec3 vPos;\n"
+        "in vec2 vPos;\n"
         "in vec2 vUv;\n"
         "out vec4 outcolor;\n"
         "void main()\n"
@@ -187,23 +202,23 @@ const char* const basicFragmentShader =
 
 
 const GLfloat plane_vertices[] = {
-    -0.9, -0.9, 0.0,
-     0.9, -0.9, 0.0,
-    -0.9,  0.9, 0.0,
+    -0.9, -0.9,
+     0.9, -0.9,
+    -0.9,  0.9,
 
-     0.9, -0.9, 0.0,
-     0.9, 0.9, -0.0,
-    -0.9,  0.9, 0.0
+     0.9, -0.9,
+     0.9, 0.9,
+    -0.9,  0.9,
 };
 
 const GLfloat small_plane_vertices[] = {
-    -0.1, -0.1, 0.0,
-     0.1, -0.1, 0.0,
-    -0.1,  0.1, 0.0,
+    -0.1, -0.1,
+     0.1, -0.1,
+    -0.1,  0.1,
 
-     0.1, -0.1, 0.0,
-     0.1, 0.1, -0.0,
-    -0.1,  0.1, 0.0
+     0.1, -0.1,
+     0.1, 0.1,
+    -0.1,  0.1,
 };
 
 const GLfloat plane_normals[] = {
@@ -309,7 +324,7 @@ void draw()
     */
 }
 
-void BuildDistortionMeshes( mesh_coord_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
+void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
 {
 	const float horizontalShiftMeters = ( hmdInfo->lensSeparationInMeters / 2 ) - ( hmdInfo->visibleMetersWide / 4 );
 	const float horizontalShiftView = horizontalShiftMeters / ( hmdInfo->visibleMetersWide / 2 );
@@ -357,6 +372,81 @@ void BuildDistortionMeshes( mesh_coord_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNE
 			}
 		}
 	}
+}
+
+void BuildTimewarp(hmd_info_t* hmdInfo){
+
+    const int vertexCount = ( hmdInfo->eyeTilesHigh + 1 ) * ( hmdInfo->eyeTilesWide + 1 );
+	const int indexCount = hmdInfo->eyeTilesHigh * hmdInfo->eyeTilesWide * 6;
+
+    distortion_indices = (GLuint*) malloc(indexCount * sizeof(GLuint));
+
+    printf("Got to here");
+
+    for ( int y = 0; y < hmdInfo->eyeTilesHigh; y++ )
+	{
+		for ( int x = 0; x < hmdInfo->eyeTilesWide; x++ )
+		{
+			const int offset = ( y * hmdInfo->eyeTilesWide + x ) * 6;
+
+			distortion_indices[offset + 0] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
+			distortion_indices[offset + 1] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
+			distortion_indices[offset + 2] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
+
+			distortion_indices[offset + 3] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
+			distortion_indices[offset + 4] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
+			distortion_indices[offset + 5] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
+		}
+	}
+
+
+
+    tw_mesh_base_ptr = (mesh_coord2d_t *) malloc( NUM_EYES * NUM_COLOR_CHANNELS * vertexCount * sizeof( mesh_coord2d_t ) );
+
+    mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS] =
+	{
+		{ tw_mesh_base_ptr + 0 * vertexCount, tw_mesh_base_ptr + 1 * vertexCount, tw_mesh_base_ptr + 2 * vertexCount },
+		{ tw_mesh_base_ptr + 3 * vertexCount, tw_mesh_base_ptr + 4 * vertexCount, tw_mesh_base_ptr + 5 * vertexCount }
+	};
+	BuildDistortionMeshes( meshCoords, hmdInfo );
+
+    distortion_positions = (mesh_coord3d_t *) malloc(vertexCount * sizeof(mesh_coord2d_t));
+    distortion_uv0 = (uv_coord_t *) malloc(vertexCount * sizeof(uv_coord_t));
+    distortion_uv1 = (uv_coord_t *) malloc(vertexCount * sizeof(uv_coord_t));
+    distortion_uv2 = (uv_coord_t *) malloc(vertexCount * sizeof(uv_coord_t));
+
+    printf("Got to here");
+
+
+    for ( int eye = 0; eye < NUM_EYES; eye++ )
+	{
+		for ( int y = 0; y <= hmdInfo->eyeTilesHigh; y++ )
+		{
+			for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
+			{
+				const int index = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
+				distortion_positions[index].x = ( -1.0f + eye + ( (float)x / hmdInfo->eyeTilesWide ) );
+				distortion_positions[index].y = ( -1.0f + 2.0f * ( ( hmdInfo->eyeTilesHigh - (float)y ) / hmdInfo->eyeTilesHigh ) *
+													( (float)( hmdInfo->eyeTilesHigh * hmdInfo->tilePixelsHigh ) / hmdInfo->displayPixelsHigh ) );
+				distortion_positions[index].z = 0.0f;
+				distortion_uv0[index].u = meshCoords[eye][0][index].x;
+				distortion_uv0[index].v = meshCoords[eye][0][index].y;
+				distortion_uv1[index].u = meshCoords[eye][1][index].x;
+				distortion_uv1[index].v = meshCoords[eye][1][index].y;
+				distortion_uv2[index].u = meshCoords[eye][2][index].x;
+				distortion_uv2[index].v = meshCoords[eye][2][index].y;
+			}
+		}
+
+		//ksGpuGeometry_Create( context, &graphics->distortionMesh[eye], &vertexAttribs.base, &indices );
+	}
+
+
+    free(tw_mesh_base_ptr);
+
+    free(distortion_indices);
+
+    return;
 }
 
 
@@ -524,8 +614,8 @@ void initGL()
 
     // Config position vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
 
     if(glGetError()){
@@ -670,6 +760,11 @@ bool initSharedMem()
     fboId = rboColorId = rboDepthId = textureId = 0;
     fboSupported = fboUsed = false;
     playTime = renderToTextureTime = 0;
+    
+    GetDefaultHmdInfo(SCREEN_WIDTH, SCREEN_HEIGHT, &hmd_info);
+    GetDefaultBodyInfo(&body_info);
+
+    BuildTimewarp(&hmd_info);
 
 
     return true;
@@ -1205,8 +1300,8 @@ void displayCB()
 
     // Config position vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), small_plane_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), small_plane_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
 
     if(glGetError()){
@@ -1267,8 +1362,8 @@ void displayCB()
     glUseProgram(tw_shader_program);
     // Config position vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
 
     glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 0.0);

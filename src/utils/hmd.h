@@ -1,15 +1,28 @@
 #ifndef _HMD_H
 #define _HMD_H
 
-#define NUM_EYES				2
-#define NUM_COLOR_CHANNELS		3
+#include <GL/glut.h>
+#include <GL/freeglut.h>
 
 
 typedef struct
 {
-	float x;
-	float y;
-} mesh_coord_t;
+	GLfloat x;
+	GLfloat y;
+} mesh_coord2d_t;
+
+typedef struct
+{
+	GLfloat x;
+	GLfloat y;
+	GLfloat z;
+} mesh_coord3d_t;
+
+typedef struct
+{
+	GLfloat u;
+	GLfloat v;
+} uv_coord_t;
 
 
 typedef struct
