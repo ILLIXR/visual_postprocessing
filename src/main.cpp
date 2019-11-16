@@ -107,29 +107,32 @@ Timer timer, t1;
 float playTime;                     // to compute rotation angle
 float renderToTextureTime;          // elapsed time for render-to-texture
 
+
+// Global HMD and body information
+hmd_info_t hmd_info;
+body_info_t body_info;
+
+// Shader and shader program handles
 GLuint tw_vertex_shader;
 GLuint tw_frag_shader;
 GLuint tw_shader_program;
 
-GLint textureLocation;
-
+// Global VAO
 GLuint vao;
 
-GLuint debug_pos_attr;
-GLuint debug_uv_attr;
+// Position and UV attribute locations
+GLuint distortion_pos_attr;
+GLuint distortion_uv_attr;
 
-hmd_info_t hmd_info;
-body_info_t body_info;
 
-mesh_coord2d_t* tw_mesh_base_ptr;
-
+// Distortion mesh information
 GLuint num_distortion_vertices;
+GLuint num_distortion_indices;
 
+// Distortion mesh CPU buffers and GPU VBO handles
 mesh_coord3d_t* distortion_positions;
 GLuint distortion_positions_vbo;
-
 GLuint* distortion_indices;
-GLuint num_distortion_indices;
 GLuint distortion_indices_vbo;
 uv_coord_t* distortion_uv0;
 GLuint distortion_uv0_vbo;
@@ -138,14 +141,13 @@ GLuint distortion_uv1_vbo;
 uv_coord_t* distortion_uv2;
 GLuint distortion_uv2_vbo;
 
-GLuint tw_start_transform_attr;
-GLuint tw_end_transform_attr;
+// Handles to the start and end timewarp
+// transform matrices (3x4 uniforms)
+GLuint tw_start_transform_unif;
+GLuint tw_end_transform_unif;
 
+// Basic perspective projection matrix
 ksMatrix4x4f basicProjection;
-
-ksMatrix4x4f timewarpTransform; // Timewarp algorithm input transform
-
-
 
 const char* const timeWarpSpatialVertexProgramGLSL =
         "#version " GLSL_VERSION "\n"
@@ -244,7 +246,7 @@ void GetHmdViewMatrixForTime( ksMatrix4x4f * viewMatrix, float time )
 {
 
 	// FIXME: use double?
-	const float offset = time * 15.0f;
+	const float offset = time * 2.0f;
 	const float degrees = 10.0f;
 	const float degreesX = sinf( offset ) * degrees;
 	const float degreesY = cosf( offset ) * degrees;
@@ -252,7 +254,7 @@ void GetHmdViewMatrixForTime( ksMatrix4x4f * viewMatrix, float time )
 	ksMatrix4x4f_CreateRotation( viewMatrix, degreesX, degreesY, 0.0f );
 }
 
-void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
+void BuildDistortionMeshes( mesh_coord2d_t * distort_coords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
 {
 	const float horizontalShiftMeters = ( hmdInfo->lensSeparationInMeters / 2 ) - ( hmdInfo->visibleMetersWide / 4 );
 	const float horizontalShiftView = horizontalShiftMeters / ( hmdInfo->visibleMetersWide / 2 );
@@ -265,7 +267,6 @@ void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHAN
 
 			for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
 			{
-                printf("Calculating (%d, %d)\n", x, y);
 				const float xf = (float)x / (float)hmdInfo->eyeTilesWide;
 
 				const float in[2] = { ( eye ? -horizontalShiftView : horizontalShiftView ) + xf, yf };
@@ -295,8 +296,8 @@ void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHAN
 				const int vertNum = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
 				for ( int channel = 0; channel < NUM_COLOR_CHANNELS; channel++ )
 				{
-					meshCoords[eye][channel][vertNum].x = chromaScale[channel] * theta[0];
-					meshCoords[eye][channel][vertNum].y = chromaScale[channel] * theta[1];
+					distort_coords[eye][channel][vertNum].x = chromaScale[channel] * theta[0];
+					distort_coords[eye][channel][vertNum].y = chromaScale[channel] * theta[1];
 				}
 			}
 		}
@@ -305,13 +306,15 @@ void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHAN
 
 void BuildTimewarp(hmd_info_t* hmdInfo){
 
+    // Calculate the number of vertices+indices in the distortion mesh.
     num_distortion_vertices = ( hmdInfo->eyeTilesHigh + 1 ) * ( hmdInfo->eyeTilesWide + 1 );
 	num_distortion_indices = hmdInfo->eyeTilesHigh * hmdInfo->eyeTilesWide * 6;
 
+    // Allocate memory for the elements/indices array.
     distortion_indices = (GLuint*) malloc(num_distortion_indices * sizeof(GLuint));
 
-    printf("Got to here");
-
+    // This is just a simple grid/plane index array, nothing fancy.
+    // Same for both eye distortions, too!
     for ( int y = 0; y < hmdInfo->eyeTilesHigh; y++ )
 	{
 		for ( int x = 0; x < hmdInfo->eyeTilesWide; x++ )
@@ -327,18 +330,23 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
 			distortion_indices[offset + 5] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
 		}
 	}
+    
+    // Allocate memory for the distortion coordinates.
+    // These are NOT the actual distortion mesh's vertices,
+    // they are calculated distortion grid coefficients
+    // that will be used to set the actual distortion mesh's UV space.
+    mesh_coord2d_t* tw_mesh_base_ptr = (mesh_coord2d_t *) malloc( NUM_EYES * NUM_COLOR_CHANNELS * num_distortion_vertices * sizeof( mesh_coord2d_t ) );
 
-
-
-    tw_mesh_base_ptr = (mesh_coord2d_t *) malloc( NUM_EYES * NUM_COLOR_CHANNELS * num_distortion_vertices * sizeof( mesh_coord2d_t ) );
-
-    mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS] =
+    // Set the distortion coordinates as a series of arrays
+    // that will be written into by the BuildDistortionMeshes() function.
+    mesh_coord2d_t * distort_coords[NUM_EYES][NUM_COLOR_CHANNELS] =
 	{
 		{ tw_mesh_base_ptr + 0 * num_distortion_vertices, tw_mesh_base_ptr + 1 * num_distortion_vertices, tw_mesh_base_ptr + 2 * num_distortion_vertices },
 		{ tw_mesh_base_ptr + 3 * num_distortion_vertices, tw_mesh_base_ptr + 4 * num_distortion_vertices, tw_mesh_base_ptr + 5 * num_distortion_vertices }
 	};
-	BuildDistortionMeshes( meshCoords, hmdInfo );
+	BuildDistortionMeshes( distort_coords, hmdInfo );
 
+    // Allocate memory for position and UV CPU buffers.
     for(int eye = 0; eye < NUM_EYES; eye++){
         distortion_positions = (mesh_coord3d_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(mesh_coord3d_t));
         distortion_uv0 = (uv_coord_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(uv_coord_t));
@@ -346,51 +354,37 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
         distortion_uv2 = (uv_coord_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(uv_coord_t));
     }
     
-    
-
-    printf("Got to here");
-
-
     for ( int eye = 0; eye < NUM_EYES; eye++ )
 	{
 		for ( int y = 0; y <= hmdInfo->eyeTilesHigh; y++ )
 		{
 			for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
 			{
-                printf("Building position buffer: (%d, %d): ", x, y);
 				const int index = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
+
+                // Set the physical distortion mesh coordinates. These are rectangular/gridlike, not distorted.
+                // The distortion is handled by the UVs, not the actual mesh coordinates!
 				distortion_positions[eye * num_distortion_vertices + index].x = ( -1.0f + eye + ( (float)x / hmdInfo->eyeTilesWide ) );
 				distortion_positions[eye * num_distortion_vertices + index].y = ( -1.0f + 2.0f * ( ( hmdInfo->eyeTilesHigh - (float)y ) / hmdInfo->eyeTilesHigh ) *
 													( (float)( hmdInfo->eyeTilesHigh * hmdInfo->tilePixelsHigh ) / hmdInfo->displayPixelsHigh ) );
 				distortion_positions[eye * num_distortion_vertices + index].z = 0.0f;
 
-                //printf("(%f, %f, %f)\n", distortion_positions[index].x, distortion_positions[index].y, distortion_positions[index].z);
-                
-				distortion_uv0[eye * num_distortion_vertices + index].u = meshCoords[eye][0][index].x;
-				distortion_uv0[eye * num_distortion_vertices + index].v = meshCoords[eye][0][index].y;
-				distortion_uv1[eye * num_distortion_vertices + index].u = meshCoords[eye][1][index].x;
-				distortion_uv1[eye * num_distortion_vertices + index].v = meshCoords[eye][1][index].y;
-				distortion_uv2[eye * num_distortion_vertices + index].u = meshCoords[eye][2][index].x;
-				distortion_uv2[eye * num_distortion_vertices + index].v = meshCoords[eye][2][index].y;
+                // Use the previously-calculated distort_coords to set the UVs on the distortion mesh
+				distortion_uv0[eye * num_distortion_vertices + index].u = distort_coords[eye][0][index].x;
+				distortion_uv0[eye * num_distortion_vertices + index].v = distort_coords[eye][0][index].y;
+				distortion_uv1[eye * num_distortion_vertices + index].u = distort_coords[eye][1][index].x;
+				distortion_uv1[eye * num_distortion_vertices + index].v = distort_coords[eye][1][index].y;
+				distortion_uv2[eye * num_distortion_vertices + index].u = distort_coords[eye][2][index].x;
+				distortion_uv2[eye * num_distortion_vertices + index].v = distort_coords[eye][2][index].y;
                 
 			}
 		}
-
-		//ksGpuGeometry_Create( context, &graphics->distortionMesh[eye], &vertexAttribs.base, &indices );
 	}
-
-    for(int i = 0; i < num_distortion_indices; i+=3){
-        printf("Triangle: (%d, %d, %d)\n", distortion_indices[i], distortion_indices[i+1], distortion_indices[i+2]);
-    }
-
-
-    // Construct some basic transforms for testing
-
+    // Construct a basic perspective projection
     ksMatrix4x4f_CreateProjectionFov( &basicProjection, 40.0f, 40.0f, 40.0f, 40.0f, 0.1f, 0.0f );
 
+    // This was just temporary.
     free(tw_mesh_base_ptr);
-
-    //free(distortion_indices);
 
     return;
 }
@@ -416,41 +410,29 @@ int main(int argc, char **argv)
         printf("main, error after initGL: %x\n", err);
     }
 
-    // create a texture object
+    // Creating a texture object for the FBO to be mapped into.
+    // This texture will be used to perform the timewarp and lens distortion process.
     glGenTextures(1, &textureId);
     glBindTexture(GL_TEXTURE_2D, textureId);
 
-    err = glGetError();
-    if(err){
-        printf("main, error after creating and binding new texture: %x\n", err);
-    }
     
+    // Set the texture parameters for the texture that the FBO will be
+    // mapped into.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    
 
-    err = glGetError();
-    if(err){
-        printf("main, error after setting tex parameters: %x\n", err);
-    }
-
+    // Unbind the texture, we'll re-bind it later when we perform the distortion
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    err = glGetError();
-    if(err){
-        printf("main, error after unbinding texture: %x\n", err);
-    }
-
-    // create a framebuffer object, you need to delete them when program exits.
+    // Create the FBO, and save the handle.
     glGenFramebuffers(1, &fboId);
+    // Bind the FBO as the active framebuffer.
     glBindFramebuffer(GL_FRAMEBUFFER, fboId);
 
     err = glGetError();
@@ -470,18 +452,11 @@ int main(int argc, char **argv)
     //glRenderbufferStorageMultisample(GL_RENDERBUFFER, fboSampleCount, GL_DEPTH_COMPONENT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-    // attach a texture to FBO color attachement point
+    // Attach the texture we created earlier to the FBO.
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
-    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
 
     // attach a renderbuffer to depth attachment point
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);
-
-    //@@ disable color buffer if you don't attach any color buffer image,
-    //@@ for example, rendering the depth buffer only to a texture.
-    //@@ Otherwise, glCheckFramebufferStatus will not be complete.
-    //glDrawBuffer(GL_NONE);
-    //glReadBuffer(GL_NONE);
 
     // check FBO status
     printFramebufferInfo(fboId);
@@ -489,13 +464,15 @@ int main(int argc, char **argv)
     if(!status)
         fboUsed = false;
 
+    // Unbind the framebuffer, so the distortion can render
+    // to the main framebuffer (aka, the screen)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     err = glGetError();
     if(err){
         printf("main, error after fbo things: %x\n", err);
     }
 
-    // start timer, the elapsed time will be used for rotating the teapot
+    // start timer
     timer.start();
 
     // the last GLUT call (LOOP)
@@ -646,24 +623,24 @@ void initGL()
     // VBO Initialization
 
     // Acquire attribute and uniform locations from the compiled and linked shader program
-    debug_pos_attr = glGetAttribLocation(tw_shader_program, "vertexPosition");
-    debug_uv_attr = glGetAttribLocation(tw_shader_program, "vertexUv1");
-    tw_start_transform_attr = glGetUniformLocation(tw_shader_program, "TimeWarpStartTransform");
-    tw_end_transform_attr = glGetUniformLocation(tw_shader_program, "TimeWarpEndTransform");
+    distortion_pos_attr = glGetAttribLocation(tw_shader_program, "vertexPosition");
+    distortion_uv_attr = glGetAttribLocation(tw_shader_program, "vertexUv1");
+    tw_start_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpStartTransform");
+    tw_end_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpEndTransform");
 
     // Config distortion mesh position vbo
     glGenBuffers(1, &distortion_positions_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 3) * sizeof(GLfloat), distortion_positions, GL_STATIC_DRAW);
-    glVertexAttribPointer(debug_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(debug_pos_attr);
+    glVertexAttribPointer(distortion_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(distortion_pos_attr);
 
     // Config distortion uv vbo
     glGenBuffers(1, &distortion_uv0_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, distortion_uv0_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv0, GL_STATIC_DRAW);
-    glVertexAttribPointer(debug_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(debug_uv_attr);
+    glVertexAttribPointer(distortion_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(distortion_uv_attr);
 
     // Config distortion mesh indices vbo
     glGenBuffers(1, &distortion_indices_vbo);
@@ -1262,8 +1239,8 @@ void displayCB()
 	ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpEndTransform3x4, &timeWarpEndTransform4x4 );
 
     // Push timewarp transform matrices to timewarp shader
-    glUniformMatrix3x4fv(tw_start_transform_attr, 1, GL_FALSE, (GLfloat*)&(timeWarpStartTransform3x4.m[0][0]));
-    glUniformMatrix3x4fv(tw_end_transform_attr, 1, GL_FALSE,  (GLfloat*)&(timeWarpEndTransform3x4.m[0][0]));
+    glUniformMatrix3x4fv(tw_start_transform_unif, 1, GL_FALSE, (GLfloat*)&(timeWarpStartTransform3x4.m[0][0]));
+    glUniformMatrix3x4fv(tw_end_transform_unif, 1, GL_FALSE,  (GLfloat*)&(timeWarpEndTransform3x4.m[0][0]));
 
     // Debugging aid, toggle switch for rendering in the fragment shader
     glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 0.0);
@@ -1282,13 +1259,13 @@ void displayCB()
         // to that region of the screen. This prevents re-uploading
         // GPU data for each eye.
         glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
-        glVertexAttribPointer(debug_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord3d_t)));
-        glEnableVertexAttribArray(debug_pos_attr);
+        glVertexAttribPointer(distortion_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord3d_t)));
+        glEnableVertexAttribArray(distortion_pos_attr);
 
         // We do the exact same thing for the UV GPU memory.
         glBindBuffer(GL_ARRAY_BUFFER, distortion_uv0_vbo);
-        glVertexAttribPointer(debug_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
-        glEnableVertexAttribArray(debug_uv_attr);
+        glVertexAttribPointer(distortion_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
+        glEnableVertexAttribArray(distortion_uv_attr);
 
 
         // Interestingly, the element index buffer is identical for both eyes, and is
@@ -1308,6 +1285,19 @@ void displayCB()
 
 void idleCB()
 {
+    glutPostRedisplay();
+}
+
+void reshapeCB(int width, int height)
+{
+    screenWidth = width;
+    screenHeight = height;
+}
+
+
+void timerCB(int millisec)
+{
+    glutTimerFunc(millisec, timerCB, millisec);
     glutPostRedisplay();
 }
 
