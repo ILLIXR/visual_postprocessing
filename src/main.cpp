@@ -54,7 +54,6 @@ void displayCB();
 void reshapeCB(int w, int h);
 void timerCB(int millisec);
 void idleCB();
-void keyboardCB(unsigned char key, int x, int y);
 void mouseCB(int button, int stat, int x, int y);
 void mouseMotionCB(int x, int y);
 
@@ -66,15 +65,8 @@ void initGL();
 int  initGLUT(int argc, char **argv);
 bool initSharedMem();
 void clearSharedMem();
-void initLights();
-void setCamera(float posX, float posY, float posZ, float targetX, float targetY, float targetZ);
 void drawString(const char *str, int x, int y, float color[4], void *font);
 void drawString3D(const char *str, float pos[3], float color[4], void *font);
-void showInfo();
-void showFPS();
-void toOrtho();
-void toPerspective();
-void draw();
 
 // FBO utils
 bool checkFramebufferStatus(GLuint fbo);
@@ -123,9 +115,6 @@ GLuint tw_shader_program;
 GLint textureLocation;
 
 GLuint vao;
-GLuint vbo_pos;
-GLuint vbo_norm;
-GLuint vbo_uv;
 
 GLuint debug_pos_attr;
 GLuint debug_uv_attr;
@@ -256,7 +245,7 @@ void GetHmdViewMatrixForTime( ksMatrix4x4f * viewMatrix, float time )
 {
 
 	// FIXME: use double?
-	const float offset = time * 2.0f;
+	const float offset = time * 15.0f;
 	const float degrees = 10.0f;
 	const float degreesX = sinf( offset ) * degrees;
 	const float degreesY = cosf( offset ) * degrees;
@@ -550,7 +539,6 @@ int initGLUT(int argc, char **argv)
     //glutTimerFunc(33, timerCB, 33);             // redraw only every given millisec
     glutIdleFunc(idleCB);                       // redraw whenever system is idle
     glutReshapeFunc(reshapeCB);
-    //glutKeyboardFunc(keyboardCB);
     glutMouseFunc(mouseCB);
     glutMotionFunc(mouseMotionCB);
 
@@ -558,17 +546,16 @@ int initGLUT(int argc, char **argv)
 }
 
 
-
-///////////////////////////////////////////////////////////////////////////////
-// initialize OpenGL
-// disable unused features
-///////////////////////////////////////////////////////////////////////////////
+/* initGL()
+ *
+ * Initializes, links, and compiles relevant shaders
+ * Initializes various VBOs for use in the timewarp distortion shader
+ * 
+ */
 void initGL()
 {
-    //glShadeModel(GL_SMOOTH);                    // shading mathod: GL_SMOOTH or GL_FLAT
-    //glPixelStorei(GL_UNPACK_ALIGNMENT, 4);      // 4-byte pixel alignment
 
-    // enable /disable features
+    // GL features
     //glEnable(GL_DEPTH_TEST);
     //glEnable(GL_CULL_FACE);
 
@@ -577,53 +564,22 @@ void initGL()
     glClearDepth(1.0f);                         // 0 is near, 1 is far
     glDepthFunc(GL_LEQUAL);
 
-    //initLights();
-
+    // Create and bind global VAO object.
+    // This may not be necessary, and I can't
+    // really find very many good resources
+    // online as to why and how this is needed.
     glGenVertexArrays(1, &vao);
-
     glBindVertexArray(vao);
 
-    glGenBuffers(1, &vbo_pos);
+    ///////////////////////////////////////////////////////
+    // Create and compile timewarp distortion vertex shader
 
-    glGenBuffers(1, &vbo_pos);
-
-    glGenBuffers(1, &vbo_uv);
-
-    glGenBuffers(1, &distortion_positions_vbo);
-    glGenBuffers(1, &distortion_indices_vbo);
-
-    if(glGetError()){
-        printf("GenBuffers or bindvertex array failed\n");
-    }
-
-    
-
-    // Config normal vbo
-    //glBindBuffer(GL_ARRAY_BUFFER, vbo_norm);
-    //glBufferData(GL_ARRAY_BUFFER, 18 * sizeof(GLfloat), plane_normals, GL_STATIC_DRAW);
-    //glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    //glEnableVertexAttribArray(2);
-    
     GLint result;
     tw_vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-
-    
-    if(glGetError()){
-        printf("glCreateShader for vertex shader failed\n");
-    }
     GLint vshader_len = strlen(timeWarpSpatialVertexProgramGLSL);
     glShaderSource(tw_vertex_shader, 1, &timeWarpSpatialVertexProgramGLSL, &vshader_len);
-    if(glGetError()){
-        printf("shaderSource for vertex shader failed\n");
-    }
     glCompileShader(tw_vertex_shader);
-    if(glGetError()){
-        printf("compileShader for vertex shader failed\n");
-    }
     glGetShaderiv(tw_vertex_shader, GL_COMPILE_STATUS, &result);
-    if(glGetError()){
-        printf("aaaah!\n");
-    }
     if ( result == GL_FALSE )
 	{
 		GLchar msg[4096];
@@ -632,19 +588,16 @@ void initGL()
 		printf( "Error: %s\n", msg);
 	}
 
+    //////////////////////////////////////////////////////////
+    // Create and compile timewarp distortion fragment shader
+
     GLint fragResult = GL_FALSE;
     tw_frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    if(glGetError()){
-        printf("createShader for fragment shader failed\n");
-    }
     GLint fshader_len = strlen(timeWarpSpatialFragmentProgramGLSL);
     glShaderSource(tw_frag_shader, 1, &timeWarpSpatialFragmentProgramGLSL, &fshader_len);
-    if(glGetError()){
-        printf("shaderSource for fragment shader failed\n");
-    }
     glCompileShader(tw_frag_shader);
     if(glGetError()){
-        printf("compileShader for fragshader failed\n");
+        printf("Distortion fragment shader compilation failed\n");
     }
     glGetShaderiv(tw_frag_shader, GL_COMPILE_STATUS, &fragResult);
     if ( fragResult == GL_FALSE )
@@ -656,14 +609,16 @@ void initGL()
 		
 	}
     
-
+    // Create program and link shaders
     tw_shader_program = glCreateProgram();
     glAttachShader(tw_shader_program, tw_vertex_shader);
     glAttachShader(tw_shader_program, tw_frag_shader);
-
     if(glGetError()){
         printf("AttachShader or createProgram failed\n");
     }
+
+    ///////////////////
+    // Link and verify
 
     glLinkProgram(tw_shader_program);
 
@@ -672,7 +627,6 @@ void initGL()
     }
 
     glGetProgramiv(tw_shader_program, GL_LINK_STATUS, &result);
-
     GLenum err = glGetError();
     if(err){
         printf("initGL, error getting link status, %x", err);
@@ -689,31 +643,33 @@ void initGL()
         printf("initGL, error at end of initGL");
     }
 
+    //////////////////////
+    // VBO Initialization
+
+    // Acquire attribute and uniform locations from the compiled and linked shader program
     debug_pos_attr = glGetAttribLocation(tw_shader_program, "vertexPosition");
     debug_uv_attr = glGetAttribLocation(tw_shader_program, "vertexUv1");
-
     tw_start_transform_attr = glGetUniformLocation(tw_shader_program, "TimeWarpStartTransform");
     tw_end_transform_attr = glGetUniformLocation(tw_shader_program, "TimeWarpEndTransform");
 
-    // Config position vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(debug_pos_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    // Config distortion mesh position vbo
+    glGenBuffers(1, &distortion_positions_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
+    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 3) * sizeof(GLfloat), distortion_positions, GL_STATIC_DRAW);
+    glVertexAttribPointer(debug_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(debug_pos_attr);
 
-    if(glGetError()){
-        printf("something in position buffer failed\n");
-    }
-
-    // Config uv vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_uvs, GL_STATIC_DRAW);
+    // Config distortion uv vbo
+    glGenBuffers(1, &distortion_uv0_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, distortion_uv0_vbo);
+    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv0, GL_STATIC_DRAW);
     glVertexAttribPointer(debug_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(debug_uv_attr);
 
-    if(glGetError()){
-        printf("Uv buffer failed\n");
-    }
+    // Config distortion mesh indices vbo
+    glGenBuffers(1, &distortion_indices_vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
 
     return;
 
@@ -732,20 +688,16 @@ bool initSharedMem()
     mouseLeftDown = mouseRightDown = false;
     mouseX = mouseY = 0;
 
-    cameraAngleX = cameraAngleY = 45;
-    cameraDistance = 4;
-
-    drawMode = 0; // 0:fill, 1: wireframe, 2:points
-
     fboId = rboColorId = rboDepthId = textureId = 0;
     fboSupported = fboUsed = false;
     playTime = renderToTextureTime = 0;
-    
+
+    // Generate reference HMD and physical body dimensions
     GetDefaultHmdInfo(SCREEN_WIDTH, SCREEN_HEIGHT, &hmd_info);
     GetDefaultBodyInfo(&body_info);
 
+    // Construct timewarp meshes and other data
     BuildTimewarp(&hmd_info);
-
 
     return true;
 }
@@ -760,10 +712,9 @@ void clearSharedMem()
     glDeleteTextures(1, &textureId);
     textureId = 0;
 
-    glDeleteBuffers(1, &vbo_pos);
-    glDeleteBuffers(1, &vbo_uv);
     glDeleteBuffers(1, &distortion_positions_vbo);
     glDeleteBuffers(1, &distortion_indices_vbo);
+    glDeleteBuffers(1, &distortion_uv0_vbo);
 
     // clean up FBO, RBO
     if(fboSupported)
@@ -1154,46 +1105,6 @@ std::string convertInternalFormatToString(GLenum format)
 }
 
 
-
-///////////////////////////////////////////////////////////////////////////////
-// set projection matrix as orthogonal
-///////////////////////////////////////////////////////////////////////////////
-void toOrtho()
-{
-    // set viewport to be the entire window
-    glViewport(0, 0, (GLsizei)screenWidth, (GLsizei)screenHeight);
-
-    // set orthographic viewing frustum
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, screenWidth, 0, screenHeight, -1, 1);
-
-    // switch to modelview matrix in order to set scene
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// set the projection matrix as perspective
-///////////////////////////////////////////////////////////////////////////////
-void toPerspective()
-{
-    // set viewport to be the entire window
-    glViewport(0, 0, (GLsizei)screenWidth, (GLsizei)screenHeight);
-
-    // set perspective viewing frustum
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(60.0f, (float)(screenWidth)/screenHeight, 1.0f, 1000.0f); // FOV, AspectRatio, NearClip, FarClip
-
-    // switch to modelview matrix in order to set scene
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-}
-
-
 ///////////////////////////////////////////////////////////////////////////////
 // Get timewarp transform from projection/view/new view matrix
 ///////////////////////////////////////////////////////////////////////////////
@@ -1242,32 +1153,8 @@ void displayCB()
     // get the total elapsed time
     playTime = (float)timer.getElapsedTime();
 
-    // compute rotation angle
-    const float ANGLE_SPEED = 90;   // degree/s
-    float angle = ANGLE_SPEED * playTime;
-
     // render to texture //////////////////////////////////////////////////////
     t1.start();
-
-    // adjust viewport and projection matrix to texture dimension
-    //glViewport(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-    //glMatrixMode(GL_PROJECTION);
-    //glLoadIdentity();
-    //gluPerspective(60.0f, (float)(TEXTURE_WIDTH)/TEXTURE_HEIGHT, 1.0f, 100.0f);
-    //glMatrixMode(GL_MODELVIEW);
-    err = glGetError();
-    if(err){
-        printf("displayCB, error after old perspective setup, %x", err);
-    }
-
-    // camera transform
-    //glLoadIdentity();
-    //glTranslatef(0, 0, -CAMERA_DISTANCE);
-
-    if(glGetError()){
-        printf("displayCB, error after translate setup");
-    }
-
     
     // with FBO
     // render directly to a texture
@@ -1329,72 +1216,49 @@ void displayCB()
 
     // rendering as normal ////////////////////////////////////////////////////
 
-    // back to normal viewport and projection matrix
+    // Render to screen viewport
     glViewport(0, 0, screenWidth, screenHeight);
-    //glMatrixMode(GL_PROJECTION);
-    //glLoadIdentity();
-    //gluPerspective(60.0f, (float)(screenWidth)/screenHeight, 1.0f, 100.0f);
-    //glMatrixMode(GL_MODELVIEW);
-    //glLoadIdentity();
-    if(glGetError()){
-        printf("displayCB, error after viewport setup");
-    }
-
-    // tramsform camera
-    //glTranslatef(0, 0, -cameraDistance);
-    //glRotatef(cameraAngleX, 1, 0, 0);   // pitch
-    //glRotatef(cameraAngleY, 0, 1, 0);   // heading
-
-    // clear framebuffer
+    // Clear color and depth buffers (stencil too, but not used)
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    //glPushMatrix();
-
-    if(glGetError()){
-        printf("displayCB, error before draw");
-    }
-
+    // Use the timewarp program
     glUseProgram(tw_shader_program);
 
-
-    // Config distortion mesh position vbo
-    glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
-    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 3) * sizeof(GLfloat), distortion_positions, GL_STATIC_DRAW);
-    glVertexAttribPointer(debug_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(debug_pos_attr);
-
-    // Config distortion uv vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
-    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv0, GL_STATIC_DRAW);
-    glVertexAttribPointer(debug_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(debug_uv_attr);
-
-    // Config distortion mesh indices vbo
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
-
+    // Identity viewMatrix, simulates
+    // the rendered scene's view matrix.
     ksMatrix4x4f viewMatrix;
-
     ksMatrix4x4f_CreateIdentity(&viewMatrix);
 
+    // We simulate two asynchronous view matrices,
+    // one at the beginning of display refresh,
+    // and one at the end of display refresh.
+    // The distortion shader will lerp between
+    // these two predictive view transformations
+    // as it renders across the horizontal view,
+    // compensating for display panel refresh delay (wow!)
     ksMatrix4x4f viewMatrixBegin;
     ksMatrix4x4f viewMatrixEnd;
 
-    // Get HMD view matrix
+    // Get HMD view matrices, one for the beginning of the
+    // panel refresh, one for the end. (Exaggerated effect,
+    // this is set to 0.1s refresh time.)
     GetHmdViewMatrixForTime(&viewMatrixBegin, playTime);
     GetHmdViewMatrixForTime(&viewMatrixEnd, playTime + 0.1f);
 
+    // Calculate the timewarp transformation matrices.
+    // These are a product of the last-known-good view matrix
+    // and the predictive transforms.
     ksMatrix4x4f timeWarpStartTransform4x4;
 	ksMatrix4x4f timeWarpEndTransform4x4;
 
-    // Calculate up-to-date timewarp transform matrix
+    // Calculate timewarp transforms using predictive view transforms
     CalculateTimeWarpTransform(&timeWarpStartTransform4x4, &basicProjection, &viewMatrix, &viewMatrixBegin);
     CalculateTimeWarpTransform(&timeWarpEndTransform4x4, &basicProjection, &viewMatrix, &viewMatrixEnd);
 
+    // We transform from 4x4 to 3x4 as we operate on vec3's in NDC space
     ksMatrix3x4f timeWarpStartTransform3x4;
 	ksMatrix3x4f timeWarpEndTransform3x4;
-
     ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpStartTransform3x4, &timeWarpStartTransform4x4 );
 	ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpEndTransform3x4, &timeWarpEndTransform4x4 );
 
@@ -1402,24 +1266,35 @@ void displayCB()
     glUniformMatrix3x4fv(tw_start_transform_attr, 1, GL_FALSE, (GLfloat*)&(timeWarpStartTransform3x4.m[0][0]));
     glUniformMatrix3x4fv(tw_end_transform_attr, 1, GL_FALSE,  (GLfloat*)&(timeWarpEndTransform3x4.m[0][0]));
 
+    // Debugging aid, toggle switch for rendering in the fragment shader
     glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 0.0);
 
+    // Bind the FBO's previously-generated glTexture
     glBindTexture(GL_TEXTURE_2D, textureId);
 
+    // Loop over each eye.
     for(int eye = 0; eye < NUM_EYES; eye++){
+
+        // The distortion_positions_vbo GPU buffer already contains
+        // the distortion mesh for both eyes! They are contiguously
+        // laid out in GPU memory. Therefore, on each eye render,
+        // we set the attribute pointer to be offset by the full
+        // eye's distortion mesh size, rendering the correct eye mesh
+        // to that region of the screen. This prevents re-uploading
+        // GPU data for each eye.
         glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
         glVertexAttribPointer(debug_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord3d_t)));
         glEnableVertexAttribArray(debug_pos_attr);
 
-        // Config distortion uv vbo
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
+        // We do the exact same thing for the UV GPU memory.
+        glBindBuffer(GL_ARRAY_BUFFER, distortion_uv0_vbo);
         glVertexAttribPointer(debug_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
         glEnableVertexAttribArray(debug_uv_attr);
 
-        // Config distortion mesh indices vbo
-        //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
-        //glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
 
+        // Interestingly, the element index buffer is identical for both eyes, and is
+        // reused for both eyes. Therefore glDrawElements can be immediately called,
+        // with the UV and position buffers correctly offset.
         glDrawElements(GL_TRIANGLES, num_distortion_indices, GL_UNSIGNED_INT, (void*)0);
 
         err = glGetError();
@@ -1428,34 +1303,7 @@ void displayCB()
         }
     }
 
-    
-
-    //glPopMatrix();
-
-    // draw info messages
-    //showInfo();
-    //showFPS();
     glutSwapBuffers();
-
-    err = glGetError();
-    if(err){
-        printf("displayCB, error after swapBuffers, %x", err);
-    }
-}
-
-
-void reshapeCB(int width, int height)
-{
-    screenWidth = width;
-    screenHeight = height;
-    toPerspective();
-}
-
-
-void timerCB(int millisec)
-{
-    glutTimerFunc(millisec, timerCB, millisec);
-    glutPostRedisplay();
 }
 
 
@@ -1463,50 +1311,6 @@ void idleCB()
 {
     glutPostRedisplay();
 }
-
-
-void keyboardCB(unsigned char key, int x, int y)
-{
-    switch(key)
-    {
-    case 27: // ESCAPE
-        exit(0);
-        break;
-
-    case ' ':
-        if(fboSupported)
-            fboUsed = !fboUsed;
-        std::cout << "FBO mode: " << (fboUsed ? "on" : "off") << std::endl;
-         break;
-
-    case 'd': // switch rendering modes (fill -> wire -> point)
-    case 'D':
-        drawMode = ++drawMode % 3;
-        if(drawMode == 0)        // fill mode
-        {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-            glEnable(GL_DEPTH_TEST);
-            glEnable(GL_CULL_FACE);
-        }
-        else if(drawMode == 1)  // wireframe mode
-        {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glDisable(GL_DEPTH_TEST);
-            glDisable(GL_CULL_FACE);
-        }
-        else                    // point mode
-        {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
-            glDisable(GL_DEPTH_TEST);
-            glDisable(GL_CULL_FACE);
-        }
-        break;
-
-    default:
-        ;
-    }
-}
-
 
 void mouseCB(int button, int state, int x, int y)
 {
