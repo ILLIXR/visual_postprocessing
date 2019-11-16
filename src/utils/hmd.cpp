@@ -1,6 +1,9 @@
 #include <cmath>
 #include "hmd.h"
 
+const int   NUM_EYES        = 2;
+const int   NUM_COLOR_CHANNELS = 3;
+
 float MaxFloat( const float x, const float y ) { return ( x > y ) ? x : y; }
 float MinFloat( const float x, const float y ) { return ( x < y ) ? x : y; }
 

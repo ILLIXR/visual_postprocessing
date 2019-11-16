@@ -85,8 +85,8 @@ std::string getRenderbufferParameters(GLuint id);
 
 
 // constants
-const int   SCREEN_WIDTH    = 400;
-const int   SCREEN_HEIGHT   = 300;
+const int   SCREEN_WIDTH    = 448;
+const int   SCREEN_HEIGHT   = 320;
 const float CAMERA_DISTANCE = 6.0f;
 const int   TEXT_WIDTH      = 8;
 const int   TEXT_HEIGHT     = 13;
@@ -132,8 +132,13 @@ body_info_t body_info;
 
 mesh_coord2d_t* tw_mesh_base_ptr;
 
+GLuint num_distortion_vertices;
+
 mesh_coord3d_t* distortion_positions;
+GLuint distortion_positions_vbo;
+
 GLuint* distortion_indices;
+GLuint distortion_indices_vbo;
 uv_coord_t* distortion_uv0;
 uv_coord_t* distortion_uv1;
 uv_coord_t* distortion_uv2;
@@ -173,13 +178,13 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
 
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
-        "in vec2 vertexPosition;\n"
+        "in vec3 vertexPosition;\n"
         "in vec2 vertexUv1;"
-        "out vec2 vPos;\n"
+        "out vec3 vPos;\n"
         "out vec2 vUv;"
         "void main()\n"
         "{\n"
-        "	gl_Position = vec4( vertexPosition.x, vertexPosition.y, 0.0, 1.0 );\n"
+        "	gl_Position = vec4( vertexPosition, 1.0 );\n"
         "   vPos = vertexPosition;\n"
         "   vUv = vertexUv1;\n"
         "}\n";
@@ -188,7 +193,7 @@ const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
         "uniform highp sampler2D Texture;\n"
         "uniform float override;\n"
-        "in vec2 vPos;\n"
+        "in vec3 vPos;\n"
         "in vec2 vUv;\n"
         "out vec4 outcolor;\n"
         "void main()\n"
@@ -196,8 +201,8 @@ const char* const basicFragmentShader =
         "   if(override > 0.5)\n"
         "       outcolor = vec4(vUv.x, vUv.y, 1.0, 1.0);\n"
         "   else\n"
-        "	    outcolor = texture( Texture, vUv );\n"
-        //"	outcolor = vec4(vUv.x, vUv.y, 1.0, 1.0);\n"
+        //"	    outcolor = texture( Texture, vUv );\n"
+        "	outcolor = vec4(vUv.x, vUv.y, 1.0, 1.0);\n"
         "}\n";
 
 
@@ -240,90 +245,6 @@ const GLfloat plane_uvs[] = {
      0.0, 1.0
 };
 
-///////////////////////////////////////////////////////////////////////////////
-// draw a textured cube with GL_TRIANGLES
-///////////////////////////////////////////////////////////////////////////////
-void draw()
-{
-    
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    /*
-    glBindTexture(GL_TEXTURE_2D, textureId);
-
-    glColor4f(1, 1, 1, 1);
-    glBegin(GL_TRIANGLES);
-        // front faces
-        glNormal3f(0,0,1);
-        // face v0-v1-v2
-        glTexCoord2f(1,1);  glVertex3f(1,1,1);
-        glTexCoord2f(0,1);  glVertex3f(-1,1,1);
-        glTexCoord2f(0,0);  glVertex3f(-1,-1,1);
-        // face v2-v3-v0
-        glTexCoord2f(0,0);  glVertex3f(-1,-1,1);
-        glTexCoord2f(1,0);  glVertex3f(1,-1,1);
-        glTexCoord2f(1,1);  glVertex3f(1,1,1);
-
-        // right faces
-        glNormal3f(1,0,0);
-        // face v0-v3-v4
-        glTexCoord2f(0,1);  glVertex3f(1,1,1);
-        glTexCoord2f(0,0);  glVertex3f(1,-1,1);
-        glTexCoord2f(1,0);  glVertex3f(1,-1,-1);
-        // face v4-v5-v0
-        glTexCoord2f(1,0);  glVertex3f(1,-1,-1);
-        glTexCoord2f(1,1);  glVertex3f(1,1,-1);
-        glTexCoord2f(0,1);  glVertex3f(1,1,1);
-
-        // top faces
-        glNormal3f(0,1,0);
-        // face v0-v5-v6
-        glTexCoord2f(1,0);  glVertex3f(1,1,1);
-        glTexCoord2f(1,1);  glVertex3f(1,1,-1);
-        glTexCoord2f(0,1);  glVertex3f(-1,1,-1);
-        // face v6-v1-v0
-        glTexCoord2f(0,1);  glVertex3f(-1,1,-1);
-        glTexCoord2f(0,0);  glVertex3f(-1,1,1);
-        glTexCoord2f(1,0);  glVertex3f(1,1,1);
-
-        // left faces
-        glNormal3f(-1,0,0);
-        // face  v1-v6-v7
-        glTexCoord2f(1,1);  glVertex3f(-1,1,1);
-        glTexCoord2f(0,1);  glVertex3f(-1,1,-1);
-        glTexCoord2f(0,0);  glVertex3f(-1,-1,-1);
-        // face v7-v2-v1
-        glTexCoord2f(0,0);  glVertex3f(-1,-1,-1);
-        glTexCoord2f(1,0);  glVertex3f(-1,-1,1);
-        glTexCoord2f(1,1);  glVertex3f(-1,1,1);
-
-        // bottom faces
-        glNormal3f(0,-1,0);
-        // face v7-v4-v3
-        glTexCoord2f(0,0);  glVertex3f(-1,-1,-1);
-        glTexCoord2f(1,0);  glVertex3f(1,-1,-1);
-        glTexCoord2f(1,1);  glVertex3f(1,-1,1);
-        // face v3-v2-v7
-        glTexCoord2f(1,1);  glVertex3f(1,-1,1);
-        glTexCoord2f(0,1);  glVertex3f(-1,-1,1);
-        glTexCoord2f(0,0);  glVertex3f(-1,-1,-1);
-
-        // back faces
-        glNormal3f(0,0,-1);
-        // face v4-v7-v6
-        glTexCoord2f(0,0);  glVertex3f(1,-1,-1);
-        glTexCoord2f(1,0);  glVertex3f(-1,-1,-1);
-        glTexCoord2f(1,1);  glVertex3f(-1,1,-1);
-        // face v6-v5-v4
-        glTexCoord2f(1,1);  glVertex3f(-1,1,-1);
-        glTexCoord2f(0,1);  glVertex3f(1,1,-1);
-        glTexCoord2f(0,0);  glVertex3f(1,-1,-1);
-    glEnd();
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-    */
-}
-
 void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
 {
 	const float horizontalShiftMeters = ( hmdInfo->lensSeparationInMeters / 2 ) - ( hmdInfo->visibleMetersWide / 4 );
@@ -337,6 +258,7 @@ void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHAN
 
 			for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
 			{
+                printf("Calculating (%d, %d)\n", x, y);
 				const float xf = (float)x / (float)hmdInfo->eyeTilesWide;
 
 				const float in[2] = { ( eye ? -horizontalShiftView : horizontalShiftView ) + xf, yf };
@@ -376,8 +298,10 @@ void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHAN
 
 void BuildTimewarp(hmd_info_t* hmdInfo){
 
-    const int vertexCount = ( hmdInfo->eyeTilesHigh + 1 ) * ( hmdInfo->eyeTilesWide + 1 );
-	const int indexCount = hmdInfo->eyeTilesHigh * hmdInfo->eyeTilesWide * 6;
+    int vertexCount = ( hmdInfo->eyeTilesHigh + 1 ) * ( hmdInfo->eyeTilesWide + 1 );
+	int indexCount = hmdInfo->eyeTilesHigh * hmdInfo->eyeTilesWide * 6;
+
+    num_distortion_vertices = vertexCount;
 
     distortion_indices = (GLuint*) malloc(indexCount * sizeof(GLuint));
 
@@ -410,7 +334,7 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
 	};
 	BuildDistortionMeshes( meshCoords, hmdInfo );
 
-    distortion_positions = (mesh_coord3d_t *) malloc(vertexCount * sizeof(mesh_coord2d_t));
+    distortion_positions = (mesh_coord3d_t *) malloc(vertexCount * sizeof(mesh_coord3d_t));
     distortion_uv0 = (uv_coord_t *) malloc(vertexCount * sizeof(uv_coord_t));
     distortion_uv1 = (uv_coord_t *) malloc(vertexCount * sizeof(uv_coord_t));
     distortion_uv2 = (uv_coord_t *) malloc(vertexCount * sizeof(uv_coord_t));
@@ -424,17 +348,22 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
 		{
 			for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
 			{
+                printf("Building position buffer: (%d, %d): ", x, y);
 				const int index = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
 				distortion_positions[index].x = ( -1.0f + eye + ( (float)x / hmdInfo->eyeTilesWide ) );
 				distortion_positions[index].y = ( -1.0f + 2.0f * ( ( hmdInfo->eyeTilesHigh - (float)y ) / hmdInfo->eyeTilesHigh ) *
 													( (float)( hmdInfo->eyeTilesHigh * hmdInfo->tilePixelsHigh ) / hmdInfo->displayPixelsHigh ) );
 				distortion_positions[index].z = 0.0f;
+
+                printf("(%f, %f, %f)\n", distortion_positions[index].x, distortion_positions[index].y, distortion_positions[index].z);
+                
 				distortion_uv0[index].u = meshCoords[eye][0][index].x;
 				distortion_uv0[index].v = meshCoords[eye][0][index].y;
 				distortion_uv1[index].u = meshCoords[eye][1][index].x;
 				distortion_uv1[index].v = meshCoords[eye][1][index].y;
 				distortion_uv2[index].u = meshCoords[eye][2][index].x;
 				distortion_uv2[index].v = meshCoords[eye][2][index].y;
+                
 			}
 		}
 
@@ -442,9 +371,9 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
 	}
 
 
-    free(tw_mesh_base_ptr);
+    //free(tw_mesh_base_ptr);
 
-    free(distortion_indices);
+    //free(distortion_indices);
 
     return;
 }
@@ -606,7 +535,12 @@ void initGL()
 
     glGenBuffers(1, &vbo_pos);
 
+    glGenBuffers(1, &vbo_pos);
+
     glGenBuffers(1, &vbo_uv);
+
+    glGenBuffers(1, &distortion_positions_vbo);
+    glGenBuffers(1, &distortion_indices_vbo);
 
     if(glGetError()){
         printf("GenBuffers or bindvertex array failed\n");
@@ -1299,16 +1233,17 @@ void displayCB()
     glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 1.0);
 
     // Config position vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), small_plane_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(0);
+    //glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
+    //glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), small_plane_vertices, GL_STATIC_DRAW);
+    //glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    //glEnableVertexAttribArray(0);
 
     if(glGetError()){
         printf("something in position buffer failed\n");
     }
 
-    draw();
+    // Draw basic plane to put something in the FBO for testing
+    //glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // back to normal window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // unbind
@@ -1360,17 +1295,23 @@ void displayCB()
     }
 
     glUseProgram(tw_shader_program);
-    // Config position vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+
+    // Config distortion mesh position vbo
+    glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
+    glBufferData(GL_ARRAY_BUFFER, (num_distortion_vertices * 3) * sizeof(GLfloat), distortion_positions, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
+
+    // Config distortion mesh indices vbo
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (num_distortion_vertices / 3) * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
 
     glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 0.0);
 
     glBindTexture(GL_TEXTURE_2D, textureId);
 
-    draw();
+    glDrawElements(GL_TRIANGLES, num_distortion_vertices, GL_UNSIGNED_INT, (void*)0);
 
     if(glGetError()){
         printf("displayCB, error after draw");
