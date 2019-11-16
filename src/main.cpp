@@ -85,8 +85,8 @@ std::string getRenderbufferParameters(GLuint id);
 
 
 // constants
-const int   SCREEN_WIDTH    = 448;
-const int   SCREEN_HEIGHT   = 320;
+const int   SCREEN_WIDTH    = 448*2;
+const int   SCREEN_HEIGHT   = 320*2;
 const float CAMERA_DISTANCE = 6.0f;
 const int   TEXT_WIDTH      = 8;
 const int   TEXT_HEIGHT     = 13;
@@ -144,40 +144,53 @@ GLuint* distortion_indices;
 GLuint num_distortion_indices;
 GLuint distortion_indices_vbo;
 uv_coord_t* distortion_uv0;
+GLuint distortion_uv0_vbo;
 uv_coord_t* distortion_uv1;
+GLuint distortion_uv1_vbo;
 uv_coord_t* distortion_uv2;
+GLuint distortion_uv2_vbo;
+
+GLuint tw_start_transform_attr;
+GLuint tw_end_transform_attr;
+
+ksMatrix4x4f basicProjection;
+
+ksMatrix4x4f timewarpTransform; // Timewarp algorithm input transform
 
 
 
 const char* const timeWarpSpatialVertexProgramGLSL =
         "#version " GLSL_VERSION "\n"
-        GLSL_EXTENSIONS
-        "uniform highp mat4 TimeWarpStartTransform;\n"
-        "uniform highp mat4 TimeWarpEndTransform;\n"
+        "uniform highp mat3x4 TimeWarpStartTransform;\n"
+        "uniform highp mat3x4 TimeWarpEndTransform;\n"
         "in highp vec3 vertexPosition;\n"
 	    "in highp vec2 vertexUv1;\n"
         "out mediump vec2 fragmentUv1;\n"
         "out gl_PerVertex { vec4 gl_Position; };\n"
+        "out mediump vec2 viz;\n"
         "void main( void )\n"
         "{\n"
-        "	gl_Position = vec4( vertexPosition, 1.0 );;\n"
+        "	gl_Position = vec4( vertexPosition, 1.0 );\n"
         "\n"
         "	float displayFraction = vertexPosition.x * 0.5 + 0.5;\n"	// landscape left-to-right
         "\n"
-        "	vec4 startUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpStartTransform;\n"
-        "	vec4 endUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpEndTransform;\n"
-        "	vec4 curUv1 = mix( startUv1, endUv1, displayFraction );\n"
+        "	vec3 startUv1 = vec4( vertexUv1, -1.0, 1.0 ) * TimeWarpStartTransform;\n"
+        "	vec3 endUv1 = vec4( vertexUv1, -1.0, 1.0 ) * TimeWarpEndTransform;\n"
+        "	vec3 curUv1 = mix( startUv1, endUv1, displayFraction );\n"
         "	fragmentUv1 = curUv1.xy * ( 1.0 / max( curUv1.z, 0.00001 ) );\n"
+        "	viz = vertexUv1.xy;\n"
         "}\n";
 
 const char* const timeWarpSpatialFragmentProgramGLSL =
+    "#version " GLSL_VERSION "\n"
     "uniform highp sampler2D Texture;\n"
     "in mediump vec2 fragmentUv1;\n"
+    "in mediump vec2 viz;\n"
     "out lowp vec4 outColor;\n"
     "void main()\n"
     "{\n"
     //"	outColor = texture( Texture, fragmentUv1 );\n"
-    "	outColor = vec4(1.0);\n"
+    "	outColor = vec4(fract(fragmentUv1.x * 4.), fract(fragmentUv1.y * 4.), 1.0, 1.0);\n"
     "}\n";
 
 const char* const basicVertexShader =
@@ -185,7 +198,7 @@ const char* const basicVertexShader =
         "in vec3 vertexPosition;\n"
         "in vec2 vertexUv1;"
         "out vec3 vPos;\n"
-        "out vec2 vUv;"
+        "out vec2 vUv;\n"
         "void main()\n"
         "{\n"
         "	gl_Position = vec4( vertexPosition, 1.0 );\n"
@@ -203,7 +216,7 @@ const char* const basicFragmentShader =
         "void main()\n"
         "{\n"
         "   if(override > 0.5)\n"
-        "       outcolor = vec4(0.0, 1.0, 1.0, 1.0);\n"
+        "       outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
         "   else\n"
         //"	    outcolor = texture( Texture, vUv );\n"
         "	outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
@@ -211,13 +224,13 @@ const char* const basicFragmentShader =
 
 
 const GLfloat plane_vertices[] = {
-    -1.0,  1.0,
-     1.0,  1.9,
-    -1.9,  1.9,
+    -0.9, -0.9,
+     0.0, -0.9,
+     -0.9, 0.0,
 
-     1.9, -3.9,
-     1.9, 1.9,
-    -1.19,  1.9,
+     0.0, -0.9,
+     0.0, 0.0,
+     -0.9, 0.0
 };
 
 const GLfloat plane_normals[] = {
@@ -238,6 +251,18 @@ const GLfloat plane_uvs[] = {
      1.0, 1.0,
      0.0, 1.0
 };
+
+void GetHmdViewMatrixForTime( ksMatrix4x4f * viewMatrix, float time )
+{
+
+	// FIXME: use double?
+	const float offset = time * 2.0f;
+	const float degrees = 10.0f;
+	const float degreesX = sinf( offset ) * degrees;
+	const float degreesY = cosf( offset ) * degrees;
+
+	ksMatrix4x4f_CreateRotation( viewMatrix, degreesX, degreesY, 0.0f );
+}
 
 void BuildDistortionMeshes( mesh_coord2d_t * meshCoords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
 {
@@ -326,10 +351,14 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
 	};
 	BuildDistortionMeshes( meshCoords, hmdInfo );
 
-    distortion_positions = (mesh_coord3d_t *) malloc(num_distortion_vertices * sizeof(mesh_coord3d_t));
-    distortion_uv0 = (uv_coord_t *) malloc(num_distortion_vertices * sizeof(uv_coord_t));
-    distortion_uv1 = (uv_coord_t *) malloc(num_distortion_vertices * sizeof(uv_coord_t));
-    distortion_uv2 = (uv_coord_t *) malloc(num_distortion_vertices * sizeof(uv_coord_t));
+    for(int eye = 0; eye < NUM_EYES; eye++){
+        distortion_positions = (mesh_coord3d_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(mesh_coord3d_t));
+        distortion_uv0 = (uv_coord_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(uv_coord_t));
+        distortion_uv1 = (uv_coord_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(uv_coord_t));
+        distortion_uv2 = (uv_coord_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(uv_coord_t));
+    }
+    
+    
 
     printf("Got to here");
 
@@ -342,19 +371,19 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
 			{
                 printf("Building position buffer: (%d, %d): ", x, y);
 				const int index = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
-				distortion_positions[index].x = ( -1.0f + eye + ( (float)x / hmdInfo->eyeTilesWide ) );
-				distortion_positions[index].y = ( -1.0f + 2.0f * ( ( hmdInfo->eyeTilesHigh - (float)y ) / hmdInfo->eyeTilesHigh ) *
+				distortion_positions[eye * num_distortion_vertices + index].x = ( -1.0f + eye + ( (float)x / hmdInfo->eyeTilesWide ) );
+				distortion_positions[eye * num_distortion_vertices + index].y = ( -1.0f + 2.0f * ( ( hmdInfo->eyeTilesHigh - (float)y ) / hmdInfo->eyeTilesHigh ) *
 													( (float)( hmdInfo->eyeTilesHigh * hmdInfo->tilePixelsHigh ) / hmdInfo->displayPixelsHigh ) );
-				distortion_positions[index].z = 0.0f;
+				distortion_positions[eye * num_distortion_vertices + index].z = 0.0f;
 
-                printf("(%f, %f, %f)\n", distortion_positions[index].x, distortion_positions[index].y, distortion_positions[index].z);
+                //printf("(%f, %f, %f)\n", distortion_positions[index].x, distortion_positions[index].y, distortion_positions[index].z);
                 
-				distortion_uv0[index].u = meshCoords[eye][0][index].x;
-				distortion_uv0[index].v = meshCoords[eye][0][index].y;
-				distortion_uv1[index].u = meshCoords[eye][1][index].x;
-				distortion_uv1[index].v = meshCoords[eye][1][index].y;
-				distortion_uv2[index].u = meshCoords[eye][2][index].x;
-				distortion_uv2[index].v = meshCoords[eye][2][index].y;
+				distortion_uv0[eye * num_distortion_vertices + index].u = meshCoords[eye][0][index].x;
+				distortion_uv0[eye * num_distortion_vertices + index].v = meshCoords[eye][0][index].y;
+				distortion_uv1[eye * num_distortion_vertices + index].u = meshCoords[eye][1][index].x;
+				distortion_uv1[eye * num_distortion_vertices + index].v = meshCoords[eye][1][index].y;
+				distortion_uv2[eye * num_distortion_vertices + index].u = meshCoords[eye][2][index].x;
+				distortion_uv2[eye * num_distortion_vertices + index].v = meshCoords[eye][2][index].y;
                 
 			}
 		}
@@ -367,7 +396,11 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
     }
 
 
-    //free(tw_mesh_base_ptr);
+    // Construct some basic transforms for testing
+
+    ksMatrix4x4f_CreateProjectionFov( &basicProjection, 40.0f, 40.0f, 40.0f, 40.0f, 0.1f, 0.0f );
+
+    free(tw_mesh_base_ptr);
 
     //free(distortion_indices);
 
@@ -378,6 +411,8 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
 ///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char **argv)
 {
+
+    GLenum err;
     // init global vars
     initSharedMem();
 
@@ -388,33 +423,52 @@ int main(int argc, char **argv)
     initGLUT(argc, argv);
     initGL();
 
-    if(glGetError()){
-        printf("main, error after initGL");
+    err = glGetError();
+    if(err){
+        printf("main, error after initGL: %x\n", err);
     }
 
     // create a texture object
     glGenTextures(1, &textureId);
-    if(glGetError()){
-        printf("main, error after glGenTextures");
-    }
     glBindTexture(GL_TEXTURE_2D, textureId);
-    if(glGetError()){
-        printf("main, gl error");
+
+    err = glGetError();
+    if(err){
+        printf("main, error after creating and binding new texture: %x\n", err);
     }
+    
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE); // automatic mipmap generation included in OpenGL v1.4
+
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    
+
+    err = glGetError();
+    if(err){
+        printf("main, error after setting tex parameters: %x\n", err);
+    }
+
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    err = glGetError();
+    if(err){
+        printf("main, error after unbinding texture: %x\n", err);
+    }
 
     // create a framebuffer object, you need to delete them when program exits.
     glGenFramebuffers(1, &fboId);
     glBindFramebuffer(GL_FRAMEBUFFER, fboId);
+
+    err = glGetError();
+    if(err){
+        printf("main, error after creating and binding fbo: %x\n", err);
+    }
 
     // create a renderbuffer object to store depth info
     // NOTE: A depth renderable image should be attached the FBO for depth test.
@@ -448,9 +502,9 @@ int main(int argc, char **argv)
         fboUsed = false;
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    if(glGetError()){
-        printf("main, error after fbo things");
+    err = glGetError();
+    if(err){
+        printf("main, error after fbo things: %x\n", err);
     }
 
     // start timer, the elapsed time will be used for rotating the teapot
@@ -557,8 +611,8 @@ void initGL()
     if(glGetError()){
         printf("glCreateShader for vertex shader failed\n");
     }
-    GLint vshader_len = strlen(basicVertexShader);
-    glShaderSource(tw_vertex_shader, 1, &basicVertexShader, &vshader_len);
+    GLint vshader_len = strlen(timeWarpSpatialVertexProgramGLSL);
+    glShaderSource(tw_vertex_shader, 1, &timeWarpSpatialVertexProgramGLSL, &vshader_len);
     if(glGetError()){
         printf("shaderSource for vertex shader failed\n");
     }
@@ -583,8 +637,8 @@ void initGL()
     if(glGetError()){
         printf("createShader for fragment shader failed\n");
     }
-    GLint fshader_len = strlen(basicFragmentShader);
-    glShaderSource(tw_frag_shader, 1, &basicFragmentShader, &fshader_len);
+    GLint fshader_len = strlen(timeWarpSpatialFragmentProgramGLSL);
+    glShaderSource(tw_frag_shader, 1, &timeWarpSpatialFragmentProgramGLSL, &fshader_len);
     if(glGetError()){
         printf("shaderSource for fragment shader failed\n");
     }
@@ -610,18 +664,6 @@ void initGL()
     if(glGetError()){
         printf("AttachShader or createProgram failed\n");
     }
-
-
-    glBindAttribLocation(tw_shader_program, 0, "vertexPosition");
-    glBindAttribLocation(tw_shader_program, 1, "vertexUv1");
-
-    if(glGetError()){
-        printf("Binding attributes failed\n");
-    } else {
-        printf("Successfully bound attrib locations\n");
-    }
-
-
 
     glLinkProgram(tw_shader_program);
 
@@ -649,6 +691,9 @@ void initGL()
 
     debug_pos_attr = glGetAttribLocation(tw_shader_program, "vertexPosition");
     debug_uv_attr = glGetAttribLocation(tw_shader_program, "vertexUv1");
+
+    tw_start_transform_attr = glGetUniformLocation(tw_shader_program, "TimeWarpStartTransform");
+    tw_end_transform_attr = glGetUniformLocation(tw_shader_program, "TimeWarpEndTransform");
 
     // Config position vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
@@ -1192,6 +1237,8 @@ void CalculateTimeWarpTransform( ksMatrix4x4f * transform, const ksMatrix4x4f * 
 
 void displayCB()
 {
+    GLenum err;
+
     // get the total elapsed time
     playTime = (float)timer.getElapsedTime();
 
@@ -1208,7 +1255,7 @@ void displayCB()
     //glLoadIdentity();
     //gluPerspective(60.0f, (float)(TEXTURE_WIDTH)/TEXTURE_HEIGHT, 1.0f, 100.0f);
     //glMatrixMode(GL_MODELVIEW);
-    GLenum err = glGetError();
+    err = glGetError();
     if(err){
         printf("displayCB, error after old perspective setup, %x", err);
     }
@@ -1237,7 +1284,11 @@ void displayCB()
     glUseProgram(tw_shader_program);
 
     glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 1.0);
+    
+    ////////////////////////////////////////////////////////////////////////
+    // DRAW SOMETHING TO BOUND FBO!
 
+    /*
     // Config position vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
     glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
@@ -1246,15 +1297,14 @@ void displayCB()
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
     glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_uvs, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(1);
-
-    if(glGetError()){
-        printf("something in position buffer failed\n");
-    }
 
     // Draw basic plane to put something in the FBO for testing
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    */
+    ////////////////////////////////////////////////////////////////////////
 
     // back to normal window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // unbind
@@ -1310,13 +1360,13 @@ void displayCB()
 
     // Config distortion mesh position vbo
     glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
-    glBufferData(GL_ARRAY_BUFFER, (num_distortion_vertices * 3) * sizeof(GLfloat), distortion_positions, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 3) * sizeof(GLfloat), distortion_positions, GL_STATIC_DRAW);
     glVertexAttribPointer(debug_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(debug_pos_attr);
 
-    // Config distortion mesh position vbo
+    // Config distortion uv vbo
     glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
-    glBufferData(GL_ARRAY_BUFFER, (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv0, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv0, GL_STATIC_DRAW);
     glVertexAttribPointer(debug_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(debug_uv_attr);
 
@@ -1324,15 +1374,61 @@ void displayCB()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
 
+    ksMatrix4x4f viewMatrix;
+
+    ksMatrix4x4f_CreateIdentity(&viewMatrix);
+
+    ksMatrix4x4f viewMatrixBegin;
+    ksMatrix4x4f viewMatrixEnd;
+
+    // Get HMD view matrix
+    GetHmdViewMatrixForTime(&viewMatrixBegin, playTime);
+    GetHmdViewMatrixForTime(&viewMatrixEnd, playTime + 0.1f);
+
+    ksMatrix4x4f timeWarpStartTransform4x4;
+	ksMatrix4x4f timeWarpEndTransform4x4;
+
+    // Calculate up-to-date timewarp transform matrix
+    CalculateTimeWarpTransform(&timeWarpStartTransform4x4, &basicProjection, &viewMatrix, &viewMatrixBegin);
+    CalculateTimeWarpTransform(&timeWarpEndTransform4x4, &basicProjection, &viewMatrix, &viewMatrixEnd);
+
+    ksMatrix3x4f timeWarpStartTransform3x4;
+	ksMatrix3x4f timeWarpEndTransform3x4;
+
+    ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpStartTransform3x4, &timeWarpStartTransform4x4 );
+	ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpEndTransform3x4, &timeWarpEndTransform4x4 );
+
+    // Push timewarp transform matrices to timewarp shader
+    glUniformMatrix3x4fv(tw_start_transform_attr, 1, GL_FALSE, (GLfloat*)&(timeWarpStartTransform3x4.m[0][0]));
+    glUniformMatrix3x4fv(tw_end_transform_attr, 1, GL_FALSE,  (GLfloat*)&(timeWarpEndTransform3x4.m[0][0]));
+
     glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 0.0);
 
     glBindTexture(GL_TEXTURE_2D, textureId);
 
-    glDrawElements(GL_TRIANGLES, num_distortion_indices, GL_UNSIGNED_INT, (void*)0);
+    for(int eye = 0; eye < NUM_EYES; eye++){
+        glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
+        glVertexAttribPointer(debug_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord3d_t)));
+        glEnableVertexAttribArray(debug_pos_attr);
 
-    if(glGetError()){
-        printf("displayCB, error after draw");
+        // Config distortion uv vbo
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
+        glVertexAttribPointer(debug_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
+        glEnableVertexAttribArray(debug_uv_attr);
+
+        // Config distortion mesh indices vbo
+        //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
+        //glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
+
+        glDrawElements(GL_TRIANGLES, num_distortion_indices, GL_UNSIGNED_INT, (void*)0);
+
+        err = glGetError();
+        if(err){
+            printf("displayCB, error after drawElements, %x", err);
+        }
     }
+
+    
 
     //glPopMatrix();
 
@@ -1340,6 +1436,11 @@ void displayCB()
     //showInfo();
     //showFPS();
     glutSwapBuffers();
+
+    err = glGetError();
+    if(err){
+        printf("displayCB, error after swapBuffers, %x", err);
+    }
 }
 
 

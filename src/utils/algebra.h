@@ -595,22 +595,10 @@ extern "C" {
 												const float tanAngleUp, float const tanAngleDown, const float nearZ, const float farZ )
 	{
 		const float tanAngleWidth = tanAngleRight - tanAngleLeft;
-
-	#if GRAPHICS_API_VULKAN == 1
-		// Set to tanAngleDown - tanAngleUp for a clip space with positive Y down (Vulkan).
-		const float tanAngleHeight = tanAngleDown - tanAngleUp;
-	#else
 		// Set to tanAngleUp - tanAngleDown for a clip space with positive Y up (OpenGL / D3D / Metal).
 		const float tanAngleHeight = tanAngleUp - tanAngleDown;
-	#endif
-
-	#if GRAPHICS_API_OPENGL == 1 || GRAPHICS_API_OPENGL_ES == 1
 		// Set to nearZ for a [-1,1] Z clip space (OpenGL / OpenGL ES).
 		const float offsetZ = nearZ;
-	#else
-		// Set to zero for a [0,1] Z clip space (Vulkan / D3D / Metal).
-		const float offsetZ = 0;
-	#endif
 
 		if ( farZ <= nearZ )
 		{
