@@ -33,7 +33,6 @@
 #include "glext.h"
 #include "glInfo.h"                             // glInfo struct
 #include "Timer.h"
-#include "teapot.h"
 #include "utils/algebra.h"
 #include "utils/hmd.h"
 
