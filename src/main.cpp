@@ -292,34 +292,17 @@ const char* const basicFragmentShader =
         "}\n";
 
 
-const GLfloat plane_vertices[] = {
-    -0.9, -0.9,
-     0.0, -0.9,
-     -0.9, 0.0,
-
-     0.0, -0.9,
-     0.0, 0.0,
-     -0.9, 0.0
-};
-
-const GLfloat plane_normals[] = {
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0
-};
-
-const GLfloat plane_uvs[] = {
-     0.0, 0.0,
-     1.0, 0.0,
-     0.0, 1.0,
-
-     1.0, 0.0,
-     1.0, 1.0,
-     0.0, 1.0
-};
+float cube_vertices[24] = {  // Coordinates for the vertices of a cube.
+           1,1,1,   1,1,-1,   1,-1,-1,   1,-1,1,
+          -1,1,1,  -1,1,-1,  -1,-1,-1,  -1,-1,1  };
+          
+float cube_colors[24] = {  // An RGB color value for each vertex
+           1,1,1,   1,0,0,   1,1,0,   0,1,0,
+           0,0,1,   1,0,1,   0,0,0,   0,1,1  };
+          
+int cube_indices[24] = {  // Vertex number for the six faces.
+          0,1,2,3, 0,3,7,4, 0,4,5,1,
+          6,2,1,5, 6,5,4,7, 6,7,3,2  };
 
 void GetHmdViewMatrixForTime( ksMatrix4x4f * viewMatrix, float time )
 {
