@@ -121,6 +121,9 @@ GLuint tw_shader_program;
 GLuint eye_sampler_0;
 GLuint eye_sampler_1;
 
+// Eye index uniform
+GLuint tw_eye_index_unif;
+
 // Global VAO
 GLuint vao;
 
@@ -691,6 +694,7 @@ void initGL()
     distortion_uv2_attr = glGetAttribLocation(tw_shader_program, "vertexUv2");
     tw_start_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpStartTransform");
     tw_end_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpEndTransform");
+    tw_eye_index_unif = glGetUniformLocation(tw_shader_program, "ArrayLayer");
     //eye_sampler_0 = glGetUniformLocation(tw_shader_program, "Texture[0]");
     //eye_sampler_1 = glGetUniformLocation(tw_shader_program, "Texture[1]");
 
