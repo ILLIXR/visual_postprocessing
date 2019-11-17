@@ -30,13 +30,11 @@
 #include <cstring>
 #include <iomanip>
 #include <cstdlib>
-#include <stdio.h>
 #include "glext.h"
 #include "glInfo.h"                             // glInfo struct
 #include "Timer.h"
 #include "utils/algebra.h"
 #include "utils/hmd.h"
-#include "image.h"
 
 using std::stringstream;
 using std::string;
@@ -44,10 +42,10 @@ using std::cout;
 using std::endl;
 using std::ends;
 
-#define OPENGL_VERSION_MAJOR	4
-#define OPENGL_VERSION_MINOR	3
-#define GLSL_VERSION			"430 core"
-#define GLSL_EXTENSIONS     	"#extension GL_EXT_shader_io_blocks : enable\n"
+#define OPENGL_VERSION_MAJOR    4
+#define OPENGL_VERSION_MINOR    3
+#define GLSL_VERSION            "430 core"
+#define GLSL_EXTENSIONS         "#extension GL_EXT_shader_io_blocks : enable\n"
 
 
 // GLUT CALLBACK functions ////////////////////////////////////////////////////
@@ -109,8 +107,6 @@ Timer timer, t1;
 float playTime;                     // to compute rotation angle
 float renderToTextureTime;          // elapsed time for render-to-texture
 
-// The pre-rendered image passed into the FBO before timewarp and distortion effects are applied
-Image* prerendered_image;
 
 // Global HMD and body information
 hmd_info_t hmd_info;
@@ -158,21 +154,21 @@ const char* const timeWarpSpatialVertexProgramGLSL =
         "uniform highp mat3x4 TimeWarpStartTransform;\n"
         "uniform highp mat3x4 TimeWarpEndTransform;\n"
         "in highp vec3 vertexPosition;\n"
-	    "in highp vec2 vertexUv1;\n"
+        "in highp vec2 vertexUv1;\n"
         "out mediump vec2 fragmentUv1;\n"
         "out gl_PerVertex { vec4 gl_Position; };\n"
         "out mediump vec2 viz;\n"
         "void main( void )\n"
         "{\n"
-        "	gl_Position = vec4( vertexPosition, 1.0 );\n"
+        "   gl_Position = vec4( vertexPosition, 1.0 );\n"
         "\n"
-        "	float displayFraction = vertexPosition.x * 0.5 + 0.5;\n"	// landscape left-to-right
+        "   float displayFraction = vertexPosition.x * 0.5 + 0.5;\n"    // landscape left-to-right
         "\n"
-        "	vec3 startUv1 = vec4( vertexUv1, -1.0, 1.0 ) * TimeWarpStartTransform;\n"
-        "	vec3 endUv1 = vec4( vertexUv1, -1.0, 1.0 ) * TimeWarpEndTransform;\n"
-        "	vec3 curUv1 = mix( startUv1, endUv1, displayFraction );\n"
-        "	fragmentUv1 = curUv1.xy * ( 1.0 / max( curUv1.z, 0.00001 ) );\n"
-        "	viz = vertexUv1.xy;\n"
+        "   vec3 startUv1 = vec4( vertexUv1, -1.0, 1.0 ) * TimeWarpStartTransform;\n"
+        "   vec3 endUv1 = vec4( vertexUv1, -1.0, 1.0 ) * TimeWarpEndTransform;\n"
+        "   vec3 curUv1 = mix( startUv1, endUv1, displayFraction );\n"
+        "   fragmentUv1 = curUv1.xy * ( 1.0 / max( curUv1.z, 0.00001 ) );\n"
+        "   viz = vertexUv1.xy;\n"
         "}\n";
 
 const char* const timeWarpSpatialFragmentProgramGLSL =
@@ -183,8 +179,8 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
     "out lowp vec4 outColor;\n"
     "void main()\n"
     "{\n"
-    "	outColor = texture( Texture, fragmentUv1 );\n"
-    //"	outColor = vec4(fract(fragmentUv1.x * 4.), fract(fragmentUv1.y * 4.), 1.0, 1.0);\n"
+    //" outColor = texture( Texture, fragmentUv1 );\n"
+    "   outColor = vec4(fract(fragmentUv1.x * 4.), fract(fragmentUv1.y * 4.), 1.0, 1.0);\n"
     "}\n";
 
 const char* const basicVertexShader =
@@ -195,7 +191,7 @@ const char* const basicVertexShader =
         "out vec2 vUv;\n"
         "void main()\n"
         "{\n"
-        "	gl_Position = vec4( vertexPosition, 1.0 );\n"
+        "   gl_Position = vec4( vertexPosition, 1.0 );\n"
         "   vPos = vertexPosition;\n"
         "   vUv = vertexUv1;\n"
         "}\n";
@@ -212,8 +208,8 @@ const char* const basicFragmentShader =
         "   if(override > 0.5)\n"
         "       outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
         "   else\n"
-        "	    outcolor = texture( Texture, vUv );\n"
-        //"	outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
+        //"     outcolor = texture( Texture, vUv );\n"
+        "   outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
         "}\n";
 
 
@@ -249,70 +245,70 @@ const GLfloat plane_uvs[] = {
 void GetHmdViewMatrixForTime( ksMatrix4x4f * viewMatrix, float time )
 {
 
-	// FIXME: use double?
-	const float offset = time * 2.0f;
-	const float degrees = 10.0f;
-	const float degreesX = sinf( offset ) * degrees;
-	const float degreesY = cosf( offset ) * degrees;
+    // FIXME: use double?
+    const float offset = time * 2.0f;
+    const float degrees = 10.0f;
+    const float degreesX = sinf( offset ) * degrees;
+    const float degreesY = cosf( offset ) * degrees;
 
-	ksMatrix4x4f_CreateRotation( viewMatrix, degreesX, degreesY, 0.0f );
+    ksMatrix4x4f_CreateRotation( viewMatrix, degreesX, degreesY, 0.0f );
 }
 
 void BuildDistortionMeshes( mesh_coord2d_t * distort_coords[NUM_EYES][NUM_COLOR_CHANNELS], hmd_info_t * hmdInfo )
 {
-	const float horizontalShiftMeters = ( hmdInfo->lensSeparationInMeters / 2 ) - ( hmdInfo->visibleMetersWide / 4 );
-	const float horizontalShiftView = horizontalShiftMeters / ( hmdInfo->visibleMetersWide / 2 );
+    const float horizontalShiftMeters = ( hmdInfo->lensSeparationInMeters / 2 ) - ( hmdInfo->visibleMetersWide / 4 );
+    const float horizontalShiftView = horizontalShiftMeters / ( hmdInfo->visibleMetersWide / 2 );
 
-	for ( int eye = 0; eye < NUM_EYES; eye++ )
-	{
-		for ( int y = 0; y <= hmdInfo->eyeTilesHigh; y++ )
-		{
-			const float yf = 1.0f - (float)y / (float)hmdInfo->eyeTilesHigh;
+    for ( int eye = 0; eye < NUM_EYES; eye++ )
+    {
+        for ( int y = 0; y <= hmdInfo->eyeTilesHigh; y++ )
+        {
+            const float yf = 1.0f - (float)y / (float)hmdInfo->eyeTilesHigh;
 
-			for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
-			{
-				const float xf = (float)x / (float)hmdInfo->eyeTilesWide;
+            for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
+            {
+                const float xf = (float)x / (float)hmdInfo->eyeTilesWide;
 
-				const float in[2] = { ( eye ? -horizontalShiftView : horizontalShiftView ) + xf, yf };
-				const float ndcToPixels[2] = { hmdInfo->visiblePixelsWide * 0.25f, hmdInfo->visiblePixelsHigh * 0.5f };
-				const float pixelsToMeters[2] = { hmdInfo->visibleMetersWide / hmdInfo->visiblePixelsWide, hmdInfo->visibleMetersHigh / hmdInfo->visiblePixelsHigh };
+                const float in[2] = { ( eye ? -horizontalShiftView : horizontalShiftView ) + xf, yf };
+                const float ndcToPixels[2] = { hmdInfo->visiblePixelsWide * 0.25f, hmdInfo->visiblePixelsHigh * 0.5f };
+                const float pixelsToMeters[2] = { hmdInfo->visibleMetersWide / hmdInfo->visiblePixelsWide, hmdInfo->visibleMetersHigh / hmdInfo->visiblePixelsHigh };
 
-				float theta[2];
-				for ( int i = 0; i < 2; i++ )
-				{
-					const float unit = in[i];
-					const float ndc = 2.0f * unit - 1.0f;
-					const float pixels = ndc * ndcToPixels[i];
-					const float meters = pixels * pixelsToMeters[i];
-					const float tanAngle = meters / hmdInfo->metersPerTanAngleAtCenter;
-					theta[i] = tanAngle;
-				}
+                float theta[2];
+                for ( int i = 0; i < 2; i++ )
+                {
+                    const float unit = in[i];
+                    const float ndc = 2.0f * unit - 1.0f;
+                    const float pixels = ndc * ndcToPixels[i];
+                    const float meters = pixels * pixelsToMeters[i];
+                    const float tanAngle = meters / hmdInfo->metersPerTanAngleAtCenter;
+                    theta[i] = tanAngle;
+                }
 
-				const float rsq = theta[0] * theta[0] + theta[1] * theta[1];
-				const float scale = EvaluateCatmullRomSpline( rsq, hmdInfo->K, hmdInfo->numKnots );
-				const float chromaScale[NUM_COLOR_CHANNELS] =
-				{
-					scale * ( 1.0f + hmdInfo->chromaticAberration[0] + rsq * hmdInfo->chromaticAberration[1] ),
-					scale,
-					scale * ( 1.0f + hmdInfo->chromaticAberration[2] + rsq * hmdInfo->chromaticAberration[3] )
-				};
+                const float rsq = theta[0] * theta[0] + theta[1] * theta[1];
+                const float scale = EvaluateCatmullRomSpline( rsq, hmdInfo->K, hmdInfo->numKnots );
+                const float chromaScale[NUM_COLOR_CHANNELS] =
+                {
+                    scale * ( 1.0f + hmdInfo->chromaticAberration[0] + rsq * hmdInfo->chromaticAberration[1] ),
+                    scale,
+                    scale * ( 1.0f + hmdInfo->chromaticAberration[2] + rsq * hmdInfo->chromaticAberration[3] )
+                };
 
-				const int vertNum = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
-				for ( int channel = 0; channel < NUM_COLOR_CHANNELS; channel++ )
-				{
-					distort_coords[eye][channel][vertNum].x = chromaScale[channel] * theta[0];
-					distort_coords[eye][channel][vertNum].y = chromaScale[channel] * theta[1];
-				}
-			}
-		}
-	}
+                const int vertNum = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
+                for ( int channel = 0; channel < NUM_COLOR_CHANNELS; channel++ )
+                {
+                    distort_coords[eye][channel][vertNum].x = chromaScale[channel] * theta[0];
+                    distort_coords[eye][channel][vertNum].y = chromaScale[channel] * theta[1];
+                }
+            }
+        }
+    }
 }
 
 void BuildTimewarp(hmd_info_t* hmdInfo){
 
     // Calculate the number of vertices+indices in the distortion mesh.
     num_distortion_vertices = ( hmdInfo->eyeTilesHigh + 1 ) * ( hmdInfo->eyeTilesWide + 1 );
-	num_distortion_indices = hmdInfo->eyeTilesHigh * hmdInfo->eyeTilesWide * 6;
+    num_distortion_indices = hmdInfo->eyeTilesHigh * hmdInfo->eyeTilesWide * 6;
 
     // Allocate memory for the elements/indices array.
     distortion_indices = (GLuint*) malloc(num_distortion_indices * sizeof(GLuint));
@@ -320,20 +316,20 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
     // This is just a simple grid/plane index array, nothing fancy.
     // Same for both eye distortions, too!
     for ( int y = 0; y < hmdInfo->eyeTilesHigh; y++ )
-	{
-		for ( int x = 0; x < hmdInfo->eyeTilesWide; x++ )
-		{
-			const int offset = ( y * hmdInfo->eyeTilesWide + x ) * 6;
+    {
+        for ( int x = 0; x < hmdInfo->eyeTilesWide; x++ )
+        {
+            const int offset = ( y * hmdInfo->eyeTilesWide + x ) * 6;
 
-			distortion_indices[offset + 0] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
-			distortion_indices[offset + 1] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
-			distortion_indices[offset + 2] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
+            distortion_indices[offset + 0] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
+            distortion_indices[offset + 1] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
+            distortion_indices[offset + 2] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
 
-			distortion_indices[offset + 3] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
-			distortion_indices[offset + 4] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
-			distortion_indices[offset + 5] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
-		}
-	}
+            distortion_indices[offset + 3] = (GLuint)( ( y + 0 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
+            distortion_indices[offset + 4] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 0 ) );
+            distortion_indices[offset + 5] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
+        }
+    }
     
     // Allocate memory for the distortion coordinates.
     // These are NOT the actual distortion mesh's vertices,
@@ -344,11 +340,11 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
     // Set the distortion coordinates as a series of arrays
     // that will be written into by the BuildDistortionMeshes() function.
     mesh_coord2d_t * distort_coords[NUM_EYES][NUM_COLOR_CHANNELS] =
-	{
-		{ tw_mesh_base_ptr + 0 * num_distortion_vertices, tw_mesh_base_ptr + 1 * num_distortion_vertices, tw_mesh_base_ptr + 2 * num_distortion_vertices },
-		{ tw_mesh_base_ptr + 3 * num_distortion_vertices, tw_mesh_base_ptr + 4 * num_distortion_vertices, tw_mesh_base_ptr + 5 * num_distortion_vertices }
-	};
-	BuildDistortionMeshes( distort_coords, hmdInfo );
+    {
+        { tw_mesh_base_ptr + 0 * num_distortion_vertices, tw_mesh_base_ptr + 1 * num_distortion_vertices, tw_mesh_base_ptr + 2 * num_distortion_vertices },
+        { tw_mesh_base_ptr + 3 * num_distortion_vertices, tw_mesh_base_ptr + 4 * num_distortion_vertices, tw_mesh_base_ptr + 5 * num_distortion_vertices }
+    };
+    BuildDistortionMeshes( distort_coords, hmdInfo );
 
     // Allocate memory for position and UV CPU buffers.
     for(int eye = 0; eye < NUM_EYES; eye++){
@@ -359,31 +355,31 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
     }
     
     for ( int eye = 0; eye < NUM_EYES; eye++ )
-	{
-		for ( int y = 0; y <= hmdInfo->eyeTilesHigh; y++ )
-		{
-			for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
-			{
-				const int index = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
+    {
+        for ( int y = 0; y <= hmdInfo->eyeTilesHigh; y++ )
+        {
+            for ( int x = 0; x <= hmdInfo->eyeTilesWide; x++ )
+            {
+                const int index = y * ( hmdInfo->eyeTilesWide + 1 ) + x;
 
                 // Set the physical distortion mesh coordinates. These are rectangular/gridlike, not distorted.
                 // The distortion is handled by the UVs, not the actual mesh coordinates!
-				distortion_positions[eye * num_distortion_vertices + index].x = ( -1.0f + eye + ( (float)x / hmdInfo->eyeTilesWide ) );
-				distortion_positions[eye * num_distortion_vertices + index].y = ( -1.0f + 2.0f * ( ( hmdInfo->eyeTilesHigh - (float)y ) / hmdInfo->eyeTilesHigh ) *
-													( (float)( hmdInfo->eyeTilesHigh * hmdInfo->tilePixelsHigh ) / hmdInfo->displayPixelsHigh ) );
-				distortion_positions[eye * num_distortion_vertices + index].z = 0.0f;
+                distortion_positions[eye * num_distortion_vertices + index].x = ( -1.0f + eye + ( (float)x / hmdInfo->eyeTilesWide ) );
+                distortion_positions[eye * num_distortion_vertices + index].y = ( -1.0f + 2.0f * ( ( hmdInfo->eyeTilesHigh - (float)y ) / hmdInfo->eyeTilesHigh ) *
+                                                    ( (float)( hmdInfo->eyeTilesHigh * hmdInfo->tilePixelsHigh ) / hmdInfo->displayPixelsHigh ) );
+                distortion_positions[eye * num_distortion_vertices + index].z = 0.0f;
 
                 // Use the previously-calculated distort_coords to set the UVs on the distortion mesh
-				distortion_uv0[eye * num_distortion_vertices + index].u = distort_coords[eye][0][index].x;
-				distortion_uv0[eye * num_distortion_vertices + index].v = distort_coords[eye][0][index].y;
-				distortion_uv1[eye * num_distortion_vertices + index].u = distort_coords[eye][1][index].x;
-				distortion_uv1[eye * num_distortion_vertices + index].v = distort_coords[eye][1][index].y;
-				distortion_uv2[eye * num_distortion_vertices + index].u = distort_coords[eye][2][index].x;
-				distortion_uv2[eye * num_distortion_vertices + index].v = distort_coords[eye][2][index].y;
+                distortion_uv0[eye * num_distortion_vertices + index].u = distort_coords[eye][0][index].x;
+                distortion_uv0[eye * num_distortion_vertices + index].v = distort_coords[eye][0][index].y;
+                distortion_uv1[eye * num_distortion_vertices + index].u = distort_coords[eye][1][index].x;
+                distortion_uv1[eye * num_distortion_vertices + index].v = distort_coords[eye][1][index].y;
+                distortion_uv2[eye * num_distortion_vertices + index].u = distort_coords[eye][2][index].x;
+                distortion_uv2[eye * num_distortion_vertices + index].v = distort_coords[eye][2][index].y;
                 
-			}
-		}
-	}
+            }
+        }
+    }
     // Construct a basic perspective projection
     ksMatrix4x4f_CreateProjectionFov( &basicProjection, 40.0f, 40.0f, 40.0f, 40.0f, 0.1f, 0.0f );
 
@@ -405,19 +401,6 @@ int main(int argc, char **argv)
     // register exit callback
     atexit(exitCB);
 
-    // Load the pre-rendered image
-    if (argc > 1)
-        // Use the first argument as the name of the png
-        prerendered_image = new Image(argv[1]);
-    else {
-        // Use the default image
-        //prerendered_image = new Image("landscape.png");
-
-        // Nah, let's make them give us an image explicitly
-        fprintf(stderr, "Usage: %s [image name]\n", argv[0]);
-        exit(0);
-    }
-
     // init GLUT and GL
     initGLUT(argc, argv);
     initGL();
@@ -431,17 +414,18 @@ int main(int argc, char **argv)
     // This texture will be used to perform the timewarp and lens distortion process.
     glGenTextures(1, &textureId);
     glBindTexture(GL_TEXTURE_2D, textureId);
+
     
     // Set the texture parameters for the texture that the FBO will be
     // mapped into.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, prerendered_image->width, prerendered_image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, prerendered_image->texture);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
     // Unbind the texture, we'll re-bind it later when we perform the distortion
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -469,7 +453,7 @@ int main(int argc, char **argv)
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     // Attach the texture we created earlier to the FBO.
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *(prerendered_image->texture), 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
 
     // attach a renderbuffer to depth attachment point
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);
@@ -573,12 +557,12 @@ void initGL()
     glCompileShader(tw_vertex_shader);
     glGetShaderiv(tw_vertex_shader, GL_COMPILE_STATUS, &result);
     if ( result == GL_FALSE )
-	{
-		GLchar msg[4096];
-		GLsizei length;
-		glGetShaderInfoLog( tw_vertex_shader, sizeof( msg ), &length, msg );
-		printf( "Error: %s\n", msg);
-	}
+    {
+        GLchar msg[4096];
+        GLsizei length;
+        glGetShaderInfoLog( tw_vertex_shader, sizeof( msg ), &length, msg );
+        printf( "Error: %s\n", msg);
+    }
 
     //////////////////////////////////////////////////////////
     // Create and compile timewarp distortion fragment shader
@@ -593,13 +577,13 @@ void initGL()
     }
     glGetShaderiv(tw_frag_shader, GL_COMPILE_STATUS, &fragResult);
     if ( fragResult == GL_FALSE )
-	{
+    {
         GLchar msg[4096];
         GLsizei length;
         glGetShaderInfoLog( tw_frag_shader, sizeof( msg ), &length, msg );
         printf( "Error: %s\n", msg);
-		
-	}
+        
+    }
     
     // Create program and link shaders
     tw_shader_program = glCreateProgram();
@@ -624,12 +608,12 @@ void initGL()
         printf("initGL, error getting link status, %x", err);
     }
     if ( result == GL_FALSE )
-	{
-		GLchar msg[4096];
-		GLsizei length;
-		glGetShaderInfoLog( tw_frag_shader, sizeof( msg ), &length, msg );
-		printf( "Error: %s\n", msg);
-	}
+    {
+        GLchar msg[4096];
+        GLsizei length;
+        glGetShaderInfoLog( tw_frag_shader, sizeof( msg ), &length, msg );
+        printf( "Error: %s\n", msg);
+    }
 
     if(glGetError()){
         printf("initGL, error at end of initGL");
@@ -703,8 +687,6 @@ void clearSharedMem()
 {
     glDeleteTextures(1, &textureId);
     textureId = 0;
-
-    delete prerendered_image;
 
     glDeleteBuffers(1, &distortion_positions_vbo);
     glDeleteBuffers(1, &distortion_indices_vbo);
@@ -1103,35 +1085,35 @@ std::string convertInternalFormatToString(GLenum format)
 // Get timewarp transform from projection/view/new view matrix
 ///////////////////////////////////////////////////////////////////////////////
 void CalculateTimeWarpTransform( ksMatrix4x4f * transform, const ksMatrix4x4f * renderProjectionMatrix,
-										const ksMatrix4x4f * renderViewMatrix, const ksMatrix4x4f * newViewMatrix )
+                                        const ksMatrix4x4f * renderViewMatrix, const ksMatrix4x4f * newViewMatrix )
 {
-	// Convert the projection matrix from [-1, 1] space to [0, 1] space.
-	const ksMatrix4x4f texCoordProjection =
-	{ {
-		{ 0.5f * renderProjectionMatrix->m[0][0],        0.0f,                                           0.0f,  0.0f },
-		{ 0.0f,                                          0.5f * renderProjectionMatrix->m[1][1],         0.0f,  0.0f },
-		{ 0.5f * renderProjectionMatrix->m[2][0] - 0.5f, 0.5f * renderProjectionMatrix->m[2][1] - 0.5f, -1.0f,  0.0f },
-		{ 0.0f,                                          0.0f,                                           0.0f,  1.0f }
-	} };
+    // Convert the projection matrix from [-1, 1] space to [0, 1] space.
+    const ksMatrix4x4f texCoordProjection =
+    { {
+        { 0.5f * renderProjectionMatrix->m[0][0],        0.0f,                                           0.0f,  0.0f },
+        { 0.0f,                                          0.5f * renderProjectionMatrix->m[1][1],         0.0f,  0.0f },
+        { 0.5f * renderProjectionMatrix->m[2][0] - 0.5f, 0.5f * renderProjectionMatrix->m[2][1] - 0.5f, -1.0f,  0.0f },
+        { 0.0f,                                          0.0f,                                           0.0f,  1.0f }
+    } };
 
-	// Calculate the delta between the view matrix used for rendering and
-	// a more recent or predicted view matrix based on new sensor input.
-	ksMatrix4x4f inverseRenderViewMatrix;
-	ksMatrix4x4f_InvertHomogeneous( &inverseRenderViewMatrix, renderViewMatrix );
+    // Calculate the delta between the view matrix used for rendering and
+    // a more recent or predicted view matrix based on new sensor input.
+    ksMatrix4x4f inverseRenderViewMatrix;
+    ksMatrix4x4f_InvertHomogeneous( &inverseRenderViewMatrix, renderViewMatrix );
 
-	ksMatrix4x4f deltaViewMatrix;
-	ksMatrix4x4f_Multiply( &deltaViewMatrix, &inverseRenderViewMatrix, newViewMatrix );
+    ksMatrix4x4f deltaViewMatrix;
+    ksMatrix4x4f_Multiply( &deltaViewMatrix, &inverseRenderViewMatrix, newViewMatrix );
 
-	ksMatrix4x4f inverseDeltaViewMatrix;
-	ksMatrix4x4f_InvertHomogeneous( &inverseDeltaViewMatrix, &deltaViewMatrix );
+    ksMatrix4x4f inverseDeltaViewMatrix;
+    ksMatrix4x4f_InvertHomogeneous( &inverseDeltaViewMatrix, &deltaViewMatrix );
 
-	// Make the delta rotation only.
-	inverseDeltaViewMatrix.m[3][0] = 0.0f;
-	inverseDeltaViewMatrix.m[3][1] = 0.0f;
-	inverseDeltaViewMatrix.m[3][2] = 0.0f;
+    // Make the delta rotation only.
+    inverseDeltaViewMatrix.m[3][0] = 0.0f;
+    inverseDeltaViewMatrix.m[3][1] = 0.0f;
+    inverseDeltaViewMatrix.m[3][2] = 0.0f;
 
-	// Accumulate the transforms.
-	ksMatrix4x4f_Multiply( transform, &texCoordProjection, &inverseDeltaViewMatrix );
+    // Accumulate the transforms.
+    ksMatrix4x4f_Multiply( transform, &texCoordProjection, &inverseDeltaViewMatrix );
 }
 
 
@@ -1244,7 +1226,7 @@ void displayCB()
     // These are a product of the last-known-good view matrix
     // and the predictive transforms.
     ksMatrix4x4f timeWarpStartTransform4x4;
-	ksMatrix4x4f timeWarpEndTransform4x4;
+    ksMatrix4x4f timeWarpEndTransform4x4;
 
     // Calculate timewarp transforms using predictive view transforms
     CalculateTimeWarpTransform(&timeWarpStartTransform4x4, &basicProjection, &viewMatrix, &viewMatrixBegin);
@@ -1252,9 +1234,9 @@ void displayCB()
 
     // We transform from 4x4 to 3x4 as we operate on vec3's in NDC space
     ksMatrix3x4f timeWarpStartTransform3x4;
-	ksMatrix3x4f timeWarpEndTransform3x4;
+    ksMatrix3x4f timeWarpEndTransform3x4;
     ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpStartTransform3x4, &timeWarpStartTransform4x4 );
-	ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpEndTransform3x4, &timeWarpEndTransform4x4 );
+    ksMatrix3x4f_CreateFromMatrix4x4f( &timeWarpEndTransform3x4, &timeWarpEndTransform4x4 );
 
     // Push timewarp transform matrices to timewarp shader
     glUniformMatrix3x4fv(tw_start_transform_unif, 1, GL_FALSE, (GLfloat*)&(timeWarpStartTransform3x4.m[0][0]));
