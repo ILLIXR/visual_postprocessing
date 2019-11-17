@@ -163,6 +163,9 @@ Image::Image(const char* filename) : filename(filename) {
 
 Image::~Image() {
     // Try to free the allocated memory
-    if (texture)
+    if (texture != NULL)
         free(texture);
+    this->texture = NULL;
+    this->width = 0;
+    this->height = 0;
 }

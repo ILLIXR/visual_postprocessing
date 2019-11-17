@@ -406,7 +406,17 @@ int main(int argc, char **argv)
     atexit(exitCB);
 
     // Load the pre-rendered image
-    prerendered_image = new Image("landscape2.png");
+    if (argc > 1)
+        // Use the first argument as the name of the png
+        prerendered_image = new Image(argv[1]);
+    else {
+        // Use the default image
+        //prerendered_image = new Image("landscape.png");
+
+        // Nah, let's make them give us an image explicitly
+        fprintf(stderr, "Usage: %s [image name]\n", argv[0]);
+        exit(0);
+    }
 
     // init GLUT and GL
     initGLUT(argc, argv);
