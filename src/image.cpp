@@ -11,14 +11,14 @@
 
 /* load_png
  *
- * Converts a PNG image to a GLubyte struct
+ * Loads a PNG image into a newly allocated GLubyte array
  *
  * Returns true on success, false on failure
  *
  * Sets outWidth and outHeight to image dimensions
  * Allocates a GLubyte array, and sets outData to point to the newly created array
  */
-bool load_png (char* filename, int& outWidth, int& outHeight, GLubyte **outData) {
+bool load_png (const char* filename, int& outWidth, int& outHeight, GLubyte **outData) {
     png_structp png_ptr;
     png_infop info_ptr;
     unsigned int sig_read = 0;
@@ -26,7 +26,7 @@ bool load_png (char* filename, int& outWidth, int& outHeight, GLubyte **outData)
     FILE *fp;
     
     if ((fp = fopen(filename, "rb")) == NULL) {
-        printf ("Failed to open file %s\n", filename);
+        fprintf (stderr, "(File not found) Failed to open file %s\n", filename);
         return false;
     }
     
@@ -136,8 +136,33 @@ bool load_png (char* filename, int& outWidth, int& outHeight, GLubyte **outData)
     return true;
 }
 
+Image::Image() {
+    // Start out with empty values
+    this->filename = NULL;
+    this->width = 0;
+    this->height = 0;
+    this->texture = NULL;
+}
+
+Image::Image(const char* filename) : filename(filename) {
+    this->width = 0;
+    this->height = 0;
+    this->texture = NULL;
+
+    if (!load_png(filename, this->width, this->height, &(this->texture))) {
+        // An error occurred, try to free the buffer if it was allocated,
+        // and set the image to be uninitialized
+        free(this->texture);
+        this->texture = NULL;
+        this->width = 0;
+        this->height = 0;
+
+        fprintf(stderr, "Error loading file %s\n", filename);
+    }
+}
+
 Image::~Image() {
     // Try to free the allocated memory
-    if (!texture)
+    if (texture)
         free(texture);
 }

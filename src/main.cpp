@@ -109,6 +109,8 @@ Timer timer, t1;
 float playTime;                     // to compute rotation angle
 float renderToTextureTime;          // elapsed time for render-to-texture
 
+// The pre-rendered image passed into the FBO before timewarp and distortion effects are applied
+Image* prerendered_image;
 
 // Global HMD and body information
 hmd_info_t hmd_info;
@@ -403,10 +405,8 @@ int main(int argc, char **argv)
     // register exit callback
     atexit(exitCB);
 
-    // Load images
-    int image_width, image_height;
-    GLubyte *textureImage;
-    load_png("./landscape2.png", image_width, image_height, &textureImage);
+    // Load the pre-rendered image
+    prerendered_image = new Image("landscape2.png");
 
     // init GLUT and GL
     initGLUT(argc, argv);
@@ -431,7 +431,7 @@ int main(int argc, char **argv)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureImage);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, prerendered_image->width, prerendered_image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, prerendered_image->texture);
 
     // Unbind the texture, we'll re-bind it later when we perform the distortion
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -459,7 +459,7 @@ int main(int argc, char **argv)
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     // Attach the texture we created earlier to the FBO.
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *textureImage, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *(prerendered_image->texture), 0);
 
     // attach a renderbuffer to depth attachment point
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);
@@ -693,6 +693,8 @@ void clearSharedMem()
 {
     glDeleteTextures(1, &textureId);
     textureId = 0;
+
+    delete prerendered_image;
 
     glDeleteBuffers(1, &distortion_positions_vbo);
     glDeleteBuffers(1, &distortion_indices_vbo);

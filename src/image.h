@@ -1,14 +1,16 @@
 // Libpng wrapper
 
-// An Image representing 
+// A class representing a given GLubyte array representing a PNG, loaded from a file
 class Image {
 public:
     int width, height;
     GLubyte* texture;
-    char* filename;
+    const char* filename;
 
+    Image();
+    Image(const char* filename);
     ~Image();
 };
 
 // Load a PNG at filename into a GLubyte array
-bool load_png (char* filename, int& outWidth, int& outHeight, GLubyte **outData);
+bool load_png (const char* filename, int& outWidth, int& outHeight, GLubyte **outData);
