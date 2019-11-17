@@ -15,7 +15,7 @@ RANLIB = ranlib
 WINDRES = windres
 
 INC =
-CFLAGS = -O0 -Wall -g
+CFLAGS = -O0 -Wall -g -std=c++11
 RESINC = 
 RCFLAGS = 
 LIBDIR =

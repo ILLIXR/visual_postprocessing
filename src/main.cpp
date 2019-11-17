@@ -30,6 +30,7 @@
 #include <cstring>
 #include <iomanip>
 #include <cstdlib>
+#include <stdio.h>
 #include "glext.h"
 #include "glInfo.h"                             // glInfo struct
 #include "Timer.h"
