@@ -36,6 +36,7 @@
 #include "Timer.h"
 #include "utils/algebra.h"
 #include "utils/hmd.h"
+#include "image.h"
 
 using std::stringstream;
 using std::string;
@@ -180,8 +181,8 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
     "out lowp vec4 outColor;\n"
     "void main()\n"
     "{\n"
-    //"	outColor = texture( Texture, fragmentUv1 );\n"
-    "	outColor = vec4(fract(fragmentUv1.x * 4.), fract(fragmentUv1.y * 4.), 1.0, 1.0);\n"
+    "	outColor = texture( Texture, fragmentUv1 );\n"
+    //"	outColor = vec4(fract(fragmentUv1.x * 4.), fract(fragmentUv1.y * 4.), 1.0, 1.0);\n"
     "}\n";
 
 const char* const basicVertexShader =
@@ -209,8 +210,8 @@ const char* const basicFragmentShader =
         "   if(override > 0.5)\n"
         "       outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
         "   else\n"
-        //"	    outcolor = texture( Texture, vUv );\n"
-        "	outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
+        "	    outcolor = texture( Texture, vUv );\n"
+        //"	outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
         "}\n";
 
 
@@ -402,6 +403,11 @@ int main(int argc, char **argv)
     // register exit callback
     atexit(exitCB);
 
+    // Load images
+    int image_width, image_height;
+    GLubyte *textureImage;
+    load_png("./landscape2.png", image_width, image_height, &textureImage);
+
     // init GLUT and GL
     initGLUT(argc, argv);
     initGL();
@@ -415,18 +421,17 @@ int main(int argc, char **argv)
     // This texture will be used to perform the timewarp and lens distortion process.
     glGenTextures(1, &textureId);
     glBindTexture(GL_TEXTURE_2D, textureId);
-
     
     // Set the texture parameters for the texture that the FBO will be
     // mapped into.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureImage);
 
     // Unbind the texture, we'll re-bind it later when we perform the distortion
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -454,7 +459,7 @@ int main(int argc, char **argv)
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     // Attach the texture we created earlier to the FBO.
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *textureImage, 0);
 
     // attach a renderbuffer to depth attachment point
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);

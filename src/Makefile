@@ -15,11 +15,11 @@ RANLIB = ranlib
 WINDRES = windres
 
 INC =
-CFLAGS = -O0 -Wall -g -std=c++11
+CFLAGS = -O0 -w -g -std=c++11
 RESINC = 
 RCFLAGS = 
 LIBDIR =
-LIB = -lglut -lGLU -lGL -lm
+LIB = -lglut -lGLU -lGL -lm -lpng
 LDFLAGS =
 
 INC_DEFAULT = $(INC)
@@ -33,7 +33,7 @@ OBJDIR_DEFAULT = objs
 DEP_DEFAULT = 
 OUT_DEFAULT = ../bin/fbo
 
-OBJ_DEFAULT = $(OBJDIR_DEFAULT)/Timer.o $(OBJDIR_DEFAULT)/glInfo.o $(OBJDIR_DEFAULT)/hmd.o $(OBJDIR_DEFAULT)/main.o
+OBJ_DEFAULT = $(OBJDIR_DEFAULT)/image.o $(OBJDIR_DEFAULT)/Timer.o $(OBJDIR_DEFAULT)/glInfo.o $(OBJDIR_DEFAULT)/hmd.o $(OBJDIR_DEFAULT)/main.o
 
 all: default
 
@@ -60,6 +60,10 @@ $(OBJDIR_DEFAULT)/gpu_buf.o: utils/gpu_buf.cpp
 $(OBJDIR_DEFAULT)/hmd.o: utils/hmd.cpp
 	test -d $(OBJDIR_DEFAULT) || mkdir -p $(OBJDIR_DEFAULT)
 	$(CPP) $(CFLAGS_DEFAULT) $(INC_DEFAULT) -c -o $(OBJDIR_DEFAULT)/hmd.o utils/hmd.cpp
+
+$(OBJDIR_DEFAULT)/image.o: image.cpp
+	test -d $(OBJDIR_DEFAULT) || mkdir -p $(OBJDIR_DEFAULT)
+	$(CPP) $(CFLAGS_DEFAULT) $(INC_DEFAULT) -c -o $(OBJDIR_DEFAULT)/image.o image.cpp
 
 $(OBJDIR_DEFAULT)/main.o: main.cpp
 	test -d $(OBJDIR_DEFAULT) || mkdir -p $(OBJDIR_DEFAULT)
