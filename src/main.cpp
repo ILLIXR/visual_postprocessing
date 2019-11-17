@@ -117,12 +117,19 @@ GLuint tw_vertex_shader;
 GLuint tw_frag_shader;
 GLuint tw_shader_program;
 
+// Eye sampler array
+GLuint eye_sampler_0;
+GLuint eye_sampler_1;
+
 // Global VAO
 GLuint vao;
 
 // Position and UV attribute locations
 GLuint distortion_pos_attr;
-GLuint distortion_uv_attr;
+GLuint distortion_uv0_attr;
+GLuint distortion_uv1_attr;
+GLuint distortion_uv2_attr;
+
 
 
 // Distortion mesh information
@@ -182,6 +189,78 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
     //" outColor = texture( Texture, fragmentUv1 );\n"
     "   outColor = vec4(fract(fragmentUv1.x * 4.), fract(fragmentUv1.y * 4.), 1.0, 1.0);\n"
     "}\n";
+
+const char* const timeWarpChromaticVertexProgramGLSL =
+	"#version " GLSL_VERSION "\n"
+	"uniform highp mat3x4 TimeWarpStartTransform;\n"
+	"uniform highp mat3x4 TimeWarpEndTransform;\n"
+	"in highp vec3 vertexPosition;\n"
+	"in highp vec2 vertexUv0;\n"
+	"in highp vec2 vertexUv1;\n"
+	"in highp vec2 vertexUv2;\n"
+	"out mediump vec2 fragmentUv0;\n"
+	"out mediump vec2 fragmentUv1;\n"
+	"out mediump vec2 fragmentUv2;\n"
+	"out gl_PerVertex { vec4 gl_Position; };\n"
+	"void main( void )\n"
+	"{\n"
+	"	gl_Position = vec4( vertexPosition, 1.0 );\n"
+	"\n"
+	"	float displayFraction = vertexPosition.x * 0.5 + 0.5;\n"	// landscape left-to-right
+	"\n"
+	"	vec3 startUv0 = vec4( vertexUv0, -1, 1 ) * TimeWarpStartTransform;\n"
+	"	vec3 startUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpStartTransform;\n"
+	"	vec3 startUv2 = vec4( vertexUv2, -1, 1 ) * TimeWarpStartTransform;\n"
+	"\n"
+	"	vec3 endUv0 = vec4( vertexUv0, -1, 1 ) * TimeWarpEndTransform;\n"
+	"	vec3 endUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpEndTransform;\n"
+	"	vec3 endUv2 = vec4( vertexUv2, -1, 1 ) * TimeWarpEndTransform;\n"
+	"\n"
+	"	vec3 curUv0 = mix( startUv0, endUv0, displayFraction );\n"
+	"	vec3 curUv1 = mix( startUv1, endUv1, displayFraction );\n"
+	"	vec3 curUv2 = mix( startUv2, endUv2, displayFraction );\n"
+	"\n"
+	"	fragmentUv0 = curUv0.xy * ( 1.0 / max( curUv0.z, 0.00001 ) );\n"
+	"	fragmentUv1 = curUv1.xy * ( 1.0 / max( curUv1.z, 0.00001 ) );\n"
+	"	fragmentUv2 = curUv2.xy * ( 1.0 / max( curUv2.z, 0.00001 ) );\n"
+	"}\n";
+
+const char* const timeWarpChromaticFragmentProgramGLSL =
+	"#version " GLSL_VERSION "\n"
+	"uniform int ArrayLayer;\n"
+	"uniform highp sampler2DArray Texture;\n"
+	"in mediump vec2 fragmentUv0;\n"
+	"in mediump vec2 fragmentUv1;\n"
+	"in mediump vec2 fragmentUv2;\n"
+	"out lowp vec4 outColor;\n"
+	"void main()\n"
+	"{\n"
+	"	outColor.r = texture( Texture, vec3( fragmentUv0, ArrayLayer ) ).r;\n"
+	"	outColor.g = texture( Texture, vec3( fragmentUv1, ArrayLayer ) ).g;\n"
+	"	outColor.b = texture( Texture, vec3( fragmentUv2, ArrayLayer ) ).b;\n"
+	"	outColor.a = 1.0;\n"
+	"}\n";
+
+const char* const timeWarpChromaticFragmentDebugProgramGLSL =
+	"#version " GLSL_VERSION "\n"
+	"uniform int ArrayLayer;\n"
+	"uniform highp sampler2DArray Texture;\n"
+	"in mediump vec2 fragmentUv0;\n"
+	"in mediump vec2 fragmentUv1;\n"
+	"in mediump vec2 fragmentUv2;\n"
+	"out lowp vec4 outColor;\n"
+	"void main()\n"
+	"{\n"
+    "   float chess0 = floor(fragmentUv0.x * 5.0) + floor(fragmentUv0.y * 5.0);"
+    "   chess0 = fract(chess0 * 0.5);"
+    "   float chess1 = floor(fragmentUv1.x * 5.0) + floor(fragmentUv1.y * 5.0);"
+    "   chess1 = fract(chess1 * 0.5);"
+    "   float chess2 = floor(fragmentUv2.x * 5.0) + floor(fragmentUv2.y * 5.0);"
+    "   chess2 = fract(chess2 * 0.5);"
+    "   outColor.r = chess0;\n"
+    "   outColor.g = chess1;\n"
+    "   outColor.b = chess2;\n"
+	"}\n";
 
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
@@ -552,8 +631,8 @@ void initGL()
 
     GLint result;
     tw_vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    GLint vshader_len = strlen(timeWarpSpatialVertexProgramGLSL);
-    glShaderSource(tw_vertex_shader, 1, &timeWarpSpatialVertexProgramGLSL, &vshader_len);
+    GLint vshader_len = strlen(timeWarpChromaticVertexProgramGLSL);
+    glShaderSource(tw_vertex_shader, 1, &timeWarpChromaticVertexProgramGLSL, &vshader_len);
     glCompileShader(tw_vertex_shader);
     glGetShaderiv(tw_vertex_shader, GL_COMPILE_STATUS, &result);
     if ( result == GL_FALSE )
@@ -569,8 +648,8 @@ void initGL()
 
     GLint fragResult = GL_FALSE;
     tw_frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    GLint fshader_len = strlen(timeWarpSpatialFragmentProgramGLSL);
-    glShaderSource(tw_frag_shader, 1, &timeWarpSpatialFragmentProgramGLSL, &fshader_len);
+    GLint fshader_len = strlen(timeWarpChromaticFragmentDebugProgramGLSL);
+    glShaderSource(tw_frag_shader, 1, &timeWarpChromaticFragmentDebugProgramGLSL, &fshader_len);
     glCompileShader(tw_frag_shader);
     if(glGetError()){
         printf("Distortion fragment shader compilation failed\n");
@@ -624,9 +703,13 @@ void initGL()
 
     // Acquire attribute and uniform locations from the compiled and linked shader program
     distortion_pos_attr = glGetAttribLocation(tw_shader_program, "vertexPosition");
-    distortion_uv_attr = glGetAttribLocation(tw_shader_program, "vertexUv1");
+    distortion_uv0_attr = glGetAttribLocation(tw_shader_program, "vertexUv0");
+    distortion_uv1_attr = glGetAttribLocation(tw_shader_program, "vertexUv1");
+    distortion_uv2_attr = glGetAttribLocation(tw_shader_program, "vertexUv2");
     tw_start_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpStartTransform");
     tw_end_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpEndTransform");
+    //eye_sampler_0 = glGetUniformLocation(tw_shader_program, "Texture[0]");
+    //eye_sampler_1 = glGetUniformLocation(tw_shader_program, "Texture[1]");
 
     // Config distortion mesh position vbo
     glGenBuffers(1, &distortion_positions_vbo);
@@ -635,12 +718,26 @@ void initGL()
     glVertexAttribPointer(distortion_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(distortion_pos_attr);
 
-    // Config distortion uv vbo
+    // Config distortion uv0 vbo
     glGenBuffers(1, &distortion_uv0_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, distortion_uv0_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv0, GL_STATIC_DRAW);
-    glVertexAttribPointer(distortion_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(distortion_uv_attr);
+    glVertexAttribPointer(distortion_uv0_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(distortion_uv0_attr);
+
+    // Config distortion uv1 vbo
+    glGenBuffers(1, &distortion_uv1_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, distortion_uv1_vbo);
+    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv1, GL_STATIC_DRAW);
+    glVertexAttribPointer(distortion_uv1_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(distortion_uv1_attr);
+
+    // Config distortion uv2 vbo
+    glGenBuffers(1, &distortion_uv2_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, distortion_uv2_vbo);
+    glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv2, GL_STATIC_DRAW);
+    glVertexAttribPointer(distortion_uv2_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(distortion_uv2_attr);
 
     // Config distortion mesh indices vbo
     glGenBuffers(1, &distortion_indices_vbo);
@@ -1264,8 +1361,18 @@ void displayCB()
 
         // We do the exact same thing for the UV GPU memory.
         glBindBuffer(GL_ARRAY_BUFFER, distortion_uv0_vbo);
-        glVertexAttribPointer(distortion_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
-        glEnableVertexAttribArray(distortion_uv_attr);
+        glVertexAttribPointer(distortion_uv0_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
+        glEnableVertexAttribArray(distortion_uv0_attr);
+
+        // We do the exact same thing for the UV GPU memory.
+        glBindBuffer(GL_ARRAY_BUFFER, distortion_uv1_vbo);
+        glVertexAttribPointer(distortion_uv1_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
+        glEnableVertexAttribArray(distortion_uv1_attr);
+
+        // We do the exact same thing for the UV GPU memory.
+        glBindBuffer(GL_ARRAY_BUFFER, distortion_uv2_vbo);
+        glVertexAttribPointer(distortion_uv2_attr, 2, GL_FLOAT, GL_FALSE, 0, (void*)(eye * num_distortion_vertices * sizeof(mesh_coord2d_t)));
+        glEnableVertexAttribArray(distortion_uv2_attr);
 
 
         // Interestingly, the element index buffer is identical for both eyes, and is
