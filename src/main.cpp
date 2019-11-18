@@ -835,6 +835,7 @@ void initGL()
     }
 
     // Generate texture for prerendered_image Image
+    glBindTexture(GL_TEXTURE_2D, prerendered_image_tex);
     glGenTextures(1, &prerendered_image_tex);
     //glBindBuffer(GL_TEXTURE_2D, prerendered_image_tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, prerendered_image->width, prerendered_image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, prerendered_image->texture);
@@ -850,6 +851,8 @@ void initGL()
 ///////////////////////////////////////////////////////////////////////////////
 bool initSharedMem(const char* fname)
 {
+    init_images(fname);
+
     screenWidth = SCREEN_WIDTH;
     screenHeight = SCREEN_HEIGHT;
 
@@ -866,8 +869,6 @@ bool initSharedMem(const char* fname)
 
     // Construct timewarp meshes and other data
     BuildTimewarp(&hmd_info);
-
-    init_images(fname);
 
     return true;
 }
