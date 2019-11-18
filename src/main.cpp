@@ -112,7 +112,7 @@ float renderToTextureTime;          // elapsed time for render-to-texture
 hmd_info_t hmd_info;
 body_info_t body_info;
 
-// Shader and shader program handles
+// Distortion shaders and shader program handles
 GLuint tw_vertex_shader;
 GLuint tw_frag_shader;
 GLuint tw_shader_program;
@@ -132,8 +132,6 @@ GLuint distortion_pos_attr;
 GLuint distortion_uv0_attr;
 GLuint distortion_uv1_attr;
 GLuint distortion_uv2_attr;
-
-
 
 // Distortion mesh information
 GLuint num_distortion_vertices;
@@ -158,6 +156,15 @@ GLuint tw_end_transform_unif;
 
 // Basic perspective projection matrix
 ksMatrix4x4f basicProjection;
+
+// Basic shaders and basic shader program
+GLuint basic_vertex_shader;
+GLuint basic_frag_shader;
+GLuint basic_shader_program;
+
+// Position and UV attribute locations
+GLuint basic_pos_attr;
+GLuint basic_uv_attr;
 
 const char* const timeWarpSpatialVertexProgramGLSL =
         "#version " GLSL_VERSION "\n"
@@ -268,44 +275,48 @@ const char* const timeWarpChromaticFragmentDebugProgramGLSL =
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
         "in vec3 vertexPosition;\n"
-        "in vec2 vertexUv1;"
-        "out vec3 vPos;\n"
-        "out vec2 vUv;\n"
+        "in vec2 vertexUV;"
+        "out vec2 vUV;\n"
         "void main()\n"
         "{\n"
         "   gl_Position = vec4( vertexPosition, 1.0 );\n"
-        "   vPos = vertexPosition;\n"
-        "   vUv = vertexUv1;\n"
+        "   vUV = vertexUV;\n"
         "}\n";
 
 const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
-        "uniform highp sampler2D Texture;\n"
-        "uniform float override;\n"
-        "in vec3 vPos;\n"
+        "uniform highp sampler2DArray Texture;\n"
+        "uniform int ArrayLayer;\n"
         "in vec2 vUv;\n"
         "out vec4 outcolor;\n"
         "void main()\n"
         "{\n"
-        "   if(override > 0.5)\n"
-        "       outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
-        "   else\n"
-        //"     outcolor = texture( Texture, vUv );\n"
         "   outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
         "}\n";
 
 
-float cube_vertices[24] = {  // Coordinates for the vertices of a cube.
+GLfloat cube_vertices[24] = {  // Coordinates for the vertices of a cube.
            1,1,1,   1,1,-1,   1,-1,-1,   1,-1,1,
           -1,1,1,  -1,1,-1,  -1,-1,-1,  -1,-1,1  };
           
-float cube_colors[24] = {  // An RGB color value for each vertex
+GLfloat cube_colors[24] = {  // An RGB color value for each vertex
            1,1,1,   1,0,0,   1,1,0,   0,1,0,
            0,0,1,   1,0,1,   0,0,0,   0,1,1  };
           
-int cube_indices[24] = {  // Vertex number for the six faces.
+GLuint cube_indices[24] = {  // Vertex number for the six faces.
           0,1,2,3, 0,3,7,4, 0,4,5,1,
           6,2,1,5, 6,5,4,7, 6,7,3,2  };
+
+GLfloat plane_vertices[8] = {  // Coordinates for the vertices of a plane.
+         -1, 1,   1, 1,
+          1,-1,   1,-1 };
+          
+GLfloat plane_uvs[8] = {  // UVs for plane
+          0, 1,   1, 1,
+          0, 0,   1, 0 };
+          
+GLuint plane_indices[6] = {  // Plane indices
+          0,2,3, 1,0,3 };
 
 void GetHmdViewMatrixForTime( ksMatrix4x4f * viewMatrix, float time )
 {
