@@ -277,6 +277,7 @@ const char* const basicVertexShader =
         "in vec3 vertexPosition;\n"
         "in vec2 vertexUV;"
         "out vec2 vUV;\n"
+        "out gl_PerVertex { vec4 gl_Position; };\n"
         "void main()\n"
         "{\n"
         "   gl_Position = vec4( vertexPosition, 1.0 );\n"
@@ -288,7 +289,7 @@ const char* const basicFragmentShader =
         "uniform highp sampler2DArray Texture;\n"
         "uniform int ArrayLayer;\n"
         "in vec2 vUv;\n"
-        "out vec4 outcolor;\n"
+        "out lowp vec4 outcolor;\n"
         "void main()\n"
         "{\n"
         "   outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
@@ -598,6 +599,81 @@ int initGLUT(int argc, char **argv)
 }
 
 
+// Return: handle to shader program
+GLuint init_and_link_shader (const char* vertex_shader, const char* fragment_shader) {
+    GLint result, vertex_shader_handle, fragment_shader_handle, shader_program;
+
+    vertex_shader_handle = glCreateShader(GL_VERTEX_SHADER);
+    GLint vshader_len = strlen(vertex_shader);
+    glShaderSource(vertex_shader_handle, 1, &vertex_shader, &vshader_len);
+    glCompileShader(vertex_shader_handle);
+    glGetShaderiv(vertex_shader_handle, GL_COMPILE_STATUS, &result);
+    if ( result == GL_FALSE )
+    {
+        GLchar msg[4096];
+        GLsizei length;
+        glGetShaderInfoLog( vertex_shader_handle, sizeof( msg ), &length, msg );
+        printf( "1 Error: %s\n", msg);
+    }
+
+    //////////////////////////////////////////////////////////
+    // Create and compile timewarp distortion fragment shader
+
+    GLint fragResult = GL_FALSE;
+    fragment_shader_handle = glCreateShader(GL_FRAGMENT_SHADER);
+    GLint fshader_len = strlen(fragment_shader);
+    glShaderSource(fragment_shader_handle, 1, &fragment_shader, &fshader_len);
+    glCompileShader(fragment_shader_handle);
+    if(glGetError()){
+        printf("Fragment shader compilation failed\n");
+    }
+    glGetShaderiv(fragment_shader_handle, GL_COMPILE_STATUS, &fragResult);
+    if ( fragResult == GL_FALSE )
+    {
+        GLchar msg[4096];
+        GLsizei length;
+        glGetShaderInfoLog( fragment_shader_handle, sizeof( msg ), &length, msg );
+        printf( "2 Error: %s\n", msg);
+        
+    }
+    
+    // Create program and link shaders
+    shader_program = glCreateProgram();
+    glAttachShader(shader_program, vertex_shader_handle);
+    glAttachShader(shader_program, fragment_shader_handle);
+    if(glGetError()){
+        printf("AttachShader or createProgram failed\n");
+    }
+
+    ///////////////////
+    // Link and verify
+
+    glLinkProgram(shader_program);
+
+    if(glGetError()){
+        printf("Linking failed\n");
+    }
+
+    glGetProgramiv(shader_program, GL_LINK_STATUS, &result);
+    GLenum err = glGetError();
+    if(err){
+        printf("initGL, error getting link status, %x", err);
+    }
+    if ( result == GL_FALSE )
+    {
+        GLchar msg[4096];
+        GLsizei length;
+        glGetShaderInfoLog( fragment_shader_handle, sizeof( msg ), &length, msg );
+        printf( "3 Error: %s\n", msg);
+    }
+
+    if(glGetError()){
+        printf("initGL, error at end of initGL");
+    }
+
+    return shader_program;
+}
+
 /* initGL()
  *
  * Initializes, links, and compiles relevant shaders
@@ -625,75 +701,7 @@ void initGL()
 
     ///////////////////////////////////////////////////////
     // Create and compile timewarp distortion vertex shader
-
-    GLint result;
-    tw_vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    GLint vshader_len = strlen(timeWarpChromaticVertexProgramGLSL);
-    glShaderSource(tw_vertex_shader, 1, &timeWarpChromaticVertexProgramGLSL, &vshader_len);
-    glCompileShader(tw_vertex_shader);
-    glGetShaderiv(tw_vertex_shader, GL_COMPILE_STATUS, &result);
-    if ( result == GL_FALSE )
-    {
-        GLchar msg[4096];
-        GLsizei length;
-        glGetShaderInfoLog( tw_vertex_shader, sizeof( msg ), &length, msg );
-        printf( "Error: %s\n", msg);
-    }
-
-    //////////////////////////////////////////////////////////
-    // Create and compile timewarp distortion fragment shader
-
-    GLint fragResult = GL_FALSE;
-    tw_frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    GLint fshader_len = strlen(timeWarpChromaticFragmentDebugProgramGLSL);
-    glShaderSource(tw_frag_shader, 1, &timeWarpChromaticFragmentDebugProgramGLSL, &fshader_len);
-    glCompileShader(tw_frag_shader);
-    if(glGetError()){
-        printf("Distortion fragment shader compilation failed\n");
-    }
-    glGetShaderiv(tw_frag_shader, GL_COMPILE_STATUS, &fragResult);
-    if ( fragResult == GL_FALSE )
-    {
-        GLchar msg[4096];
-        GLsizei length;
-        glGetShaderInfoLog( tw_frag_shader, sizeof( msg ), &length, msg );
-        printf( "Error: %s\n", msg);
-        
-    }
-    
-    // Create program and link shaders
-    tw_shader_program = glCreateProgram();
-    glAttachShader(tw_shader_program, tw_vertex_shader);
-    glAttachShader(tw_shader_program, tw_frag_shader);
-    if(glGetError()){
-        printf("AttachShader or createProgram failed\n");
-    }
-
-    ///////////////////
-    // Link and verify
-
-    glLinkProgram(tw_shader_program);
-
-    if(glGetError()){
-        printf("Linking failed\n");
-    }
-
-    glGetProgramiv(tw_shader_program, GL_LINK_STATUS, &result);
-    GLenum err = glGetError();
-    if(err){
-        printf("initGL, error getting link status, %x", err);
-    }
-    if ( result == GL_FALSE )
-    {
-        GLchar msg[4096];
-        GLsizei length;
-        glGetShaderInfoLog( tw_frag_shader, sizeof( msg ), &length, msg );
-        printf( "Error: %s\n", msg);
-    }
-
-    if(glGetError()){
-        printf("initGL, error at end of initGL");
-    }
+    tw_shader_program = init_and_link_shader(timeWarpChromaticVertexProgramGLSL, timeWarpChromaticFragmentDebugProgramGLSL);
 
     //////////////////////
     // VBO Initialization
@@ -741,6 +749,9 @@ void initGL()
     glGenBuffers(1, &distortion_indices_vbo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
+
+    // Create the basic shader program
+    basic_shader_program = init_and_link_shader (basicVertexShader, basicFragmentShader);
 
     return;
 
