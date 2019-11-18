@@ -83,8 +83,8 @@ const int   SCREEN_HEIGHT   = 320*2;
 const float CAMERA_DISTANCE = 6.0f;
 const int   TEXT_WIDTH      = 8;
 const int   TEXT_HEIGHT     = 13;
-const int   TEXTURE_WIDTH   = 256;  // NOTE: texture size cannot be larger than
-const int   TEXTURE_HEIGHT  = 256;  // the rendering window size in non-FBO mode
+const int   TEXTURE_WIDTH   = 1024;  // NOTE: texture size cannot be larger than
+const int   TEXTURE_HEIGHT  = 1024;  // the rendering window size in non-FBO mode
 const int   NUM_EYES        = 2;
 const int   NUM_COLOR_CHANNELS = 3;
 
@@ -282,6 +282,8 @@ const char* const timeWarpChromaticFragmentDebugProgramGLSL =
     "   outColor.r = chess0;\n"
     "   outColor.g = chess1;\n"
     "   outColor.b = chess2;\n"
+    "   if(fragmentUv0.x > 1.0 || fragmentUv0.x < 0.0 || fragmentUv0.y > 1.0 || fragmentUv0.y < 0.0)\n"
+    "       outColor = vec4(vec3(0.0), 1.0);\n"
 	"}\n";
 
 const char* const basicVertexShader =
@@ -303,7 +305,7 @@ const char* const basicFragmentShader =
         "out lowp vec4 outcolor;\n"
         "void main()\n"
         "{\n"
-        //"   outcolor = vec4(fract(vUV.x * 18.), fract(vUV.y * 18.), 1.0, 1.0);\n"
+        "   outcolor = vec4(vUV.x, vUV.y, 1.0, 1.0);\n"
         //"   outcolor = vec4(0.0,0.0,0.0, 1.0);\n"
         "     outcolor = texture(Texture, vUV);\n"
         "}\n";
@@ -323,7 +325,7 @@ GLuint cube_indices[24] = {  // Vertex number for the six faces.
 
 GLfloat plane_vertices[8] = {  // Coordinates for the vertices of a plane.
          -1, 1,   1, 1,
-          -1,-1,   1,-1 };
+          -1, -1,   1, -1 };
           
 GLfloat plane_uvs[8] = {  // UVs for plane
           0, 1,   1, 1,
@@ -728,6 +730,7 @@ void initGL()
     //glClearColor(0, 0, 0, 0);                   // background color
     //glClearStencil(0);                          // clear stencil buffer
     //glClearDepth(1.0f);                         // 0 is near, 1 is far
+    //glEnable(GL_SCISSOR_TEST);
     glDepthFunc(GL_LEQUAL);
 
     // Create and bind global VAO object.
@@ -1353,6 +1356,8 @@ void displayCB()
     
     ////////////////////////////////////////////////////////////////////////
     // DRAW SOMETHING TO BOUND FBO!
+
+    glViewport(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
 
     glBindTexture(GL_TEXTURE_2D, prerendered_image_tex);
     glBindVertexArray(basic_vao);

@@ -81,9 +81,9 @@ void GetDefaultHmdInfo( const int displayPixelsWide, const int displayPixelsHigh
 	hmd_info->K[8] = 1.368f;
 	hmd_info->K[9] = 1.452f;
 	hmd_info->K[10] = 1.560f;
-	hmd_info->chromaticAberration[0] = -0.006f;
+	hmd_info->chromaticAberration[0] = -0.016f;
 	hmd_info->chromaticAberration[1] =  0.0f;
-	hmd_info->chromaticAberration[2] =  0.014f;
+	hmd_info->chromaticAberration[2] =  0.024f;
 	hmd_info->chromaticAberration[3] =  0.0f;
 }
 
