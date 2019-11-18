@@ -671,6 +671,10 @@ GLuint init_and_link_shader (const char* vertex_shader, const char* fragment_sha
         printf("initGL, error at end of initGL");
     }
 
+    // After successful link, detach shaders from shader program
+    glDetachShader(shader_program, vertex_shader_handle);
+    glDetachShader(shader_program, fragment_shader_handle);
+
     return shader_program;
 }
 
