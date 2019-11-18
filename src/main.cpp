@@ -35,6 +35,7 @@
 #include "Timer.h"
 #include "utils/algebra.h"
 #include "utils/hmd.h"
+#include "image.h"
 
 using std::stringstream;
 using std::string;
@@ -55,6 +56,7 @@ void timerCB(int millisec);
 void idleCB();
 void mouseCB(int button, int stat, int x, int y);
 void mouseMotionCB(int x, int y);
+void init_images(const char* fname);
 
 // CALLBACK function when exit() called ///////////////////////////////////////
 void exitCB();
@@ -62,7 +64,7 @@ void exitCB();
 // function declearations /////////////////////////////////////////////////////
 void initGL();
 int  initGLUT(int argc, char **argv);
-bool initSharedMem();
+bool initSharedMem(const char* fname);
 void clearSharedMem();
 void drawString(const char *str, int x, int y, float color[4], void *font);
 void drawString3D(const char *str, float pos[3], float color[4], void *font);
@@ -171,6 +173,10 @@ GLuint basic_uv_attr;
 GLuint basic_pos_vbo;
 GLuint basic_uv_vbo;
 GLuint basic_indices_vbo;
+
+// Texture Image objects
+Image* prerendered_image;
+GLuint prerendered_image_tex;
 
 const char* const timeWarpSpatialVertexProgramGLSL =
         "#version " GLSL_VERSION "\n"
@@ -292,13 +298,14 @@ const char* const basicVertexShader =
 
 const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
-        //"uniform highp sampler2D Texture;\n"
+        "uniform highp sampler2D Texture;\n"
         "in vec2 vUV;\n"
         "out lowp vec4 outcolor;\n"
         "void main()\n"
         "{\n"
-        "   outcolor = vec4(fract(vUV.x * 18.), fract(vUV.y * 18.), 1.0, 1.0);\n"
+        //"   outcolor = vec4(fract(vUV.x * 18.), fract(vUV.y * 18.), 1.0, 1.0);\n"
         //"   outcolor = vec4(0.0,0.0,0.0, 1.0);\n"
+        "     outcolor = texture(Texture, vUV);\n"
         "}\n";
 
 
@@ -478,8 +485,14 @@ int main(int argc, char **argv)
 {
 
     GLenum err;
+
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s [image]\n", argv[0]);
+        exit(1);
+    }
+
     // init global vars
-    initSharedMem();
+    initSharedMem(argv[1]);
 
     // register exit callback
     atexit(exitCB);
@@ -821,6 +834,11 @@ void initGL()
         printf("Error after configuring basic uv vbo: %x\n", err);
     }
 
+    // Generate texture for prerendered_image Image
+    glGenTextures(1, &prerendered_image_tex);
+    //glBindBuffer(GL_TEXTURE_2D, prerendered_image_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, prerendered_image->width, prerendered_image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, prerendered_image->texture);
+
     return;
 
 }
@@ -830,7 +848,7 @@ void initGL()
 ///////////////////////////////////////////////////////////////////////////////
 // initialize global variables
 ///////////////////////////////////////////////////////////////////////////////
-bool initSharedMem()
+bool initSharedMem(const char* fname)
 {
     screenWidth = SCREEN_WIDTH;
     screenHeight = SCREEN_HEIGHT;
@@ -848,6 +866,8 @@ bool initSharedMem()
 
     // Construct timewarp meshes and other data
     BuildTimewarp(&hmd_info);
+
+    init_images(fname);
 
     return true;
 }
@@ -1290,6 +1310,10 @@ void CalculateTimeWarpTransform( ksMatrix4x4f * transform, const ksMatrix4x4f * 
     ksMatrix4x4f_Multiply( transform, &texCoordProjection, &inverseDeltaViewMatrix );
 }
 
+void init_images (const char* fname) {
+    prerendered_image = new Image(fname);
+}
+
 
 
 //=============================================================================
@@ -1322,6 +1346,8 @@ void displayCB()
     
     ////////////////////////////////////////////////////////////////////////
     // DRAW SOMETHING TO BOUND FBO!
+
+    glBindTexture(GL_TEXTURE_2D, prerendered_image_tex);
     glBindVertexArray(basic_vao);
     glEnableVertexAttribArray(basic_pos_attr);
     glEnableVertexAttribArray(basic_uv_attr);
