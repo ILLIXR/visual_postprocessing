@@ -290,7 +290,7 @@ const char* const basicVertexShader =
 
 const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
-        "uniform highp sampler2D Texture;\n"
+        //"uniform highp sampler2D Texture;\n"
         "in vec2 vUv;\n"
         "out lowp vec4 outcolor;\n"
         "void main()\n"
@@ -729,28 +729,28 @@ void initGL()
     glBindBuffer(GL_ARRAY_BUFFER, distortion_positions_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 3) * sizeof(GLfloat), distortion_positions, GL_STATIC_DRAW);
     glVertexAttribPointer(distortion_pos_attr, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(distortion_pos_attr);
+    //glEnableVertexAttribArray(distortion_pos_attr);
 
     // Config distortion uv0 vbo
     glGenBuffers(1, &distortion_uv0_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, distortion_uv0_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv0, GL_STATIC_DRAW);
     glVertexAttribPointer(distortion_uv0_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(distortion_uv0_attr);
+    //glEnableVertexAttribArray(distortion_uv0_attr);
 
     // Config distortion uv1 vbo
     glGenBuffers(1, &distortion_uv1_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, distortion_uv1_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv1, GL_STATIC_DRAW);
     glVertexAttribPointer(distortion_uv1_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(distortion_uv1_attr);
+    //glEnableVertexAttribArray(distortion_uv1_attr);
 
     // Config distortion uv2 vbo
     glGenBuffers(1, &distortion_uv2_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, distortion_uv2_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_EYES * (num_distortion_vertices * 2) * sizeof(GLfloat), distortion_uv2, GL_STATIC_DRAW);
     glVertexAttribPointer(distortion_uv2_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(distortion_uv2_attr);
+    //glEnableVertexAttribArray(distortion_uv2_attr);
 
     // Config distortion mesh indices vbo
     glGenBuffers(1, &distortion_indices_vbo);
@@ -766,16 +766,28 @@ void initGL()
     basic_pos_attr = glGetAttribLocation(basic_shader_program, "vertexPosition");
     basic_uv_attr = glGetAttribLocation(basic_shader_program, "vertexUV");
 
+    GLenum err;
+
     // Config basic mesh position vbo
     glGenBuffers(1, &basic_pos_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, basic_pos_vbo);
     glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
     glVertexAttribPointer(basic_pos_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(basic_pos_attr);
 
-    GLenum err = glGetError();
+    err = glGetError();
     if(err){
         printf("Error after configuring basic position vbo: %x\n", err);
+    }
+
+    // Config basic mesh uv vbo
+    glGenBuffers(1, &basic_uv_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, basic_uv_vbo);
+    glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), plane_uvs, GL_STATIC_DRAW);
+    glVertexAttribPointer(basic_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+    err = glGetError();
+    if(err){
+        printf("Error after configuring basic uv vbo: %x\n", err);
     }
 
     return;
@@ -1275,29 +1287,17 @@ void displayCB()
     // clear buffer
     glClearColor(1, 1, 1, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUseProgram(tw_shader_program);
-
-    glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 1.0);
+    glUseProgram(basic_shader_program);
     
     ////////////////////////////////////////////////////////////////////////
     // DRAW SOMETHING TO BOUND FBO!
 
-    /*
-    // Config position vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_uv);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), plane_uvs, GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(basic_pos_attr);
+    glEnableVertexAttribArray(basic_uv_attr);
 
     // Draw basic plane to put something in the FBO for testing
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    */
+    glDrawElements(GL_TRIANGLES, 2, GL_UNSIGNED_INT, NULL);
+    
     ////////////////////////////////////////////////////////////////////////
 
     // back to normal window-system-provided framebuffer
