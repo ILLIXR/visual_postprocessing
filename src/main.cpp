@@ -279,7 +279,7 @@ const char* const timeWarpChromaticFragmentDebugProgramGLSL =
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
         "in vec3 vertexPosition;\n"
-        "in vec2 vertexUV;"
+        "in vec2 vertexUV;\n"
         "out vec2 vUV;\n"
         "out gl_PerVertex { vec4 gl_Position; };\n"
         "void main()\n"
@@ -291,11 +291,11 @@ const char* const basicVertexShader =
 const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
         //"uniform highp sampler2D Texture;\n"
-        "in vec2 vUv;\n"
+        "in vec2 vUV;\n"
         "out lowp vec4 outcolor;\n"
         "void main()\n"
         "{\n"
-        "   outcolor = vec4(fract(vUv.x * 4.), fract(vUv.y * 4.), 1.0, 1.0);\n"
+        "   outcolor = vec4(fract(vUV.x * 4.), fract(vUV.y * 4.), 1.0, 1.0);\n"
         "}\n";
 
 
