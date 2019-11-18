@@ -837,6 +837,12 @@ void initGL()
     // Generate texture for prerendered_image Image
     glGenTextures(1, &prerendered_image_tex);
     glBindTexture(GL_TEXTURE_2D, prerendered_image_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
     //glBindBuffer(GL_TEXTURE_2D, prerendered_image_tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, prerendered_image->width, prerendered_image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, prerendered_image->texture);
 
