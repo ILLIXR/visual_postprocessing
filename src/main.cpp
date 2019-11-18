@@ -124,8 +124,9 @@ GLuint eye_sampler_1;
 // Eye index uniform
 GLuint tw_eye_index_unif;
 
-// Global VAO
-GLuint vao;
+// VAOs
+GLuint tw_vao;
+GLuint basic_vao;
 
 // Position and UV attribute locations
 GLuint distortion_pos_attr;
@@ -169,6 +170,7 @@ GLuint basic_uv_attr;
 // Position and UV vbo's
 GLuint basic_pos_vbo;
 GLuint basic_uv_vbo;
+GLuint basic_indices_vbo;
 
 const char* const timeWarpSpatialVertexProgramGLSL =
         "#version " GLSL_VERSION "\n"
@@ -295,7 +297,8 @@ const char* const basicFragmentShader =
         "out lowp vec4 outcolor;\n"
         "void main()\n"
         "{\n"
-        "   outcolor = vec4(fract(vUV.x * 4.), fract(vUV.y * 4.), 1.0, 1.0);\n"
+        "   outcolor = vec4(fract(vUV.x * 18.), fract(vUV.y * 18.), 1.0, 1.0);\n"
+        //"   outcolor = vec4(0.0,0.0,0.0, 1.0);\n"
         "}\n";
 
 
@@ -313,7 +316,7 @@ GLuint cube_indices[24] = {  // Vertex number for the six faces.
 
 GLfloat plane_vertices[8] = {  // Coordinates for the vertices of a plane.
          -1, 1,   1, 1,
-          1,-1,   1,-1 };
+          -1,-1,   1,-1 };
           
 GLfloat plane_uvs[8] = {  // UVs for plane
           0, 1,   1, 1,
@@ -493,22 +496,23 @@ int main(int argc, char **argv)
     // Creating a texture object for the FBO to be mapped into.
     // This texture will be used to perform the timewarp and lens distortion process.
     glGenTextures(1, &textureId);
-    glBindTexture(GL_TEXTURE_2D, textureId);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, textureId);
 
     
     // Set the texture parameters for the texture that the FBO will be
     // mapped into.
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    
     // Unbind the texture, we'll re-bind it later when we perform the distortion
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     // Create the FBO, and save the handle.
     glGenFramebuffers(1, &fboId);
@@ -532,11 +536,16 @@ int main(int argc, char **argv)
     //glRenderbufferStorageMultisample(GL_RENDERBUFFER, fboSampleCount, GL_DEPTH_COMPONENT, TEXTURE_WIDTH, TEXTURE_HEIGHT);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
+    glBindTexture(GL_TEXTURE_2D_ARRAY, textureId);
     // Attach the texture we created earlier to the FBO.
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId, 0);
+    glFramebufferTextureLayer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, textureId, 0, 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     // attach a renderbuffer to depth attachment point
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);
+
+    
+
 
     // check FBO status
     printFramebufferInfo(fboId);
@@ -703,12 +712,14 @@ void initGL()
     // This may not be necessary, and I can't
     // really find very many good resources
     // online as to why and how this is needed.
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
+    glGenVertexArrays(1, &tw_vao);
+    glBindVertexArray(tw_vao);
+
+    
 
     ///////////////////////////////////////////////////////
     // Create and compile timewarp distortion vertex shader
-    tw_shader_program = init_and_link_shader(timeWarpChromaticVertexProgramGLSL, timeWarpChromaticFragmentDebugProgramGLSL);
+    tw_shader_program = init_and_link_shader(timeWarpChromaticVertexProgramGLSL, timeWarpChromaticFragmentProgramGLSL);
 
     //////////////////////
     // VBO Initialization
@@ -721,8 +732,8 @@ void initGL()
     tw_start_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpStartTransform");
     tw_end_transform_unif = glGetUniformLocation(tw_shader_program, "TimeWarpEndTransform");
     tw_eye_index_unif = glGetUniformLocation(tw_shader_program, "ArrayLayer");
-    //eye_sampler_0 = glGetUniformLocation(tw_shader_program, "Texture[0]");
-    //eye_sampler_1 = glGetUniformLocation(tw_shader_program, "Texture[1]");
+    eye_sampler_0 = glGetUniformLocation(tw_shader_program, "Texture[0]");
+    eye_sampler_1 = glGetUniformLocation(tw_shader_program, "Texture[1]");
 
     // Config distortion mesh position vbo
     glGenBuffers(1, &distortion_positions_vbo);
@@ -757,7 +768,8 @@ void initGL()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
 
-    
+    glGenVertexArrays(1, &basic_vao);
+    glBindVertexArray(basic_vao);
 
     // Create the basic shader program
     basic_shader_program = init_and_link_shader (basicVertexShader, basicFragmentShader);
@@ -784,6 +796,16 @@ void initGL()
     glBindBuffer(GL_ARRAY_BUFFER, basic_uv_vbo);
     glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), plane_uvs, GL_STATIC_DRAW);
     glVertexAttribPointer(basic_uv_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+    err = glGetError();
+    if(err){
+        printf("Error after configuring basic uv vbo: %x\n", err);
+    }
+
+    // Config basic mesh indices vbo
+    glGenBuffers(1, &basic_indices_vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, basic_indices_vbo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLfloat), plane_indices, GL_STATIC_DRAW);
 
     err = glGetError();
     if(err){
@@ -1285,18 +1307,18 @@ void displayCB()
     }
 
     // clear buffer
-    glClearColor(1, 1, 1, 1);
+    glClearColor(1, 0, 1, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(basic_shader_program);
     
     ////////////////////////////////////////////////////////////////////////
     // DRAW SOMETHING TO BOUND FBO!
-
+    glBindVertexArray(basic_vao);
     glEnableVertexAttribArray(basic_pos_attr);
     glEnableVertexAttribArray(basic_uv_attr);
 
     // Draw basic plane to put something in the FBO for testing
-    glDrawElements(GL_TRIANGLES, 2, GL_UNSIGNED_INT, NULL);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
     
     ////////////////////////////////////////////////////////////////////////
 
@@ -1374,10 +1396,14 @@ void displayCB()
     glUniformMatrix3x4fv(tw_end_transform_unif, 1, GL_FALSE,  (GLfloat*)&(timeWarpEndTransform3x4.m[0][0]));
 
     // Debugging aid, toggle switch for rendering in the fragment shader
-    glUniform1f(glGetUniformLocation(tw_shader_program, "override"), 0.0);
+    glUniform1i(glGetUniformLocation(tw_shader_program, "ArrayIndex"), 0);
+
+    glUniform1i(eye_sampler_0, 0);
 
     // Bind the FBO's previously-generated glTexture
-    glBindTexture(GL_TEXTURE_2D, textureId);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, textureId);
+
+    glBindVertexArray(tw_vao);
 
     // Loop over each eye.
     for(int eye = 0; eye < NUM_EYES; eye++){
