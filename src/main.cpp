@@ -540,26 +540,35 @@ int main(int argc, char **argv)
     // Attach the texture we created earlier to the FBO.
     glFramebufferTextureLayer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, textureId, 0, 0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    err = glGetError();
+    if(err){
+        printf("main, error2: %x\n", err);
+    }
 
     // attach a renderbuffer to depth attachment point
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepthId);
 
-    
+    err = glGetError();
+    if(err){
+        printf("main, error3: %x\n", err);
+    }
 
 
     // check FBO status
-    printFramebufferInfo(fboId);
-    bool status = checkFramebufferStatus(fboId);
-    if(!status)
-        fboUsed = false;
+    //printFramebufferInfo(fboId);
+    //bool status = checkFramebufferStatus(fboId);
+    //if(!status)
+        //fboUsed = false;
 
-    // Unbind the framebuffer, so the distortion can render
-    // to the main framebuffer (aka, the screen)
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     err = glGetError();
     if(err){
         printf("main, error after fbo things: %x\n", err);
     }
+
+    // Unbind the framebuffer, so the distortion can render
+    // to the main framebuffer (aka, the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
 
     // start timer
     timer.start();
@@ -703,9 +712,9 @@ void initGL()
     //glEnable(GL_DEPTH_TEST);
     //glEnable(GL_CULL_FACE);
 
-    glClearColor(0, 0, 0, 0);                   // background color
-    glClearStencil(0);                          // clear stencil buffer
-    glClearDepth(1.0f);                         // 0 is near, 1 is far
+    //glClearColor(0, 0, 0, 0);                   // background color
+    //glClearStencil(0);                          // clear stencil buffer
+    //glClearDepth(1.0f);                         // 0 is near, 1 is far
     glDepthFunc(GL_LEQUAL);
 
     // Create and bind global VAO object.
@@ -1307,8 +1316,8 @@ void displayCB()
     }
 
     // clear buffer
-    glClearColor(1, 0, 1, 1);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //glClearColor(1, 0, 1, 1);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(basic_shader_program);
     
     ////////////////////////////////////////////////////////////////////////
