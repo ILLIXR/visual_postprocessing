@@ -166,6 +166,10 @@ GLuint basic_shader_program;
 GLuint basic_pos_attr;
 GLuint basic_uv_attr;
 
+// Position and UV vbo's
+GLuint basic_pos_vbo;
+GLuint basic_uv_vbo;
+
 const char* const timeWarpSpatialVertexProgramGLSL =
         "#version " GLSL_VERSION "\n"
         "uniform highp mat3x4 TimeWarpStartTransform;\n"
@@ -286,8 +290,7 @@ const char* const basicVertexShader =
 
 const char* const basicFragmentShader =
         "#version " GLSL_VERSION "\n"
-        "uniform highp sampler2DArray Texture;\n"
-        "uniform int ArrayLayer;\n"
+        "uniform highp sampler2D Texture;\n"
         "in vec2 vUv;\n"
         "out lowp vec4 outcolor;\n"
         "void main()\n"
@@ -754,8 +757,26 @@ void initGL()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, distortion_indices_vbo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_distortion_indices * sizeof(GLuint), distortion_indices, GL_STATIC_DRAW);
 
+    
+
     // Create the basic shader program
     basic_shader_program = init_and_link_shader (basicVertexShader, basicFragmentShader);
+
+    // Acquire attribute and uniform locations from the compiled and linked shader program
+    basic_pos_attr = glGetAttribLocation(basic_shader_program, "vertexPosition");
+    basic_uv_attr = glGetAttribLocation(basic_shader_program, "vertexUV");
+
+    // Config basic mesh position vbo
+    glGenBuffers(1, &basic_pos_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, basic_pos_vbo);
+    glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), plane_vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(basic_pos_attr, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(basic_pos_attr);
+
+    GLenum err = glGetError();
+    if(err){
+        printf("Error after configuring basic position vbo: %x\n", err);
+    }
 
     return;
 
