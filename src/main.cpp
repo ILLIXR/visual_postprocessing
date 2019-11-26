@@ -1,18 +1,7 @@
-///////////////////////////////////////////////////////////////////////////////
-// main.cpp
-// ========
-// testing Frame Buffer Object (FBO) for "Render To Texture" with MSAA
-// OpenGL draws the scene directly to a texture object.
-//
-// GL_EXT_framebuffer_object extension is promoted to a core feature of OpenGL
-// version 3.0 (GL_ARB_framebuffer_object)
-//
-//  AUTHOR: Song Ho Ahn (song.ahn@gmail.com)
-// CREATED: 2008-05-16
-// UPDATED: 2016-11-14
-///////////////////////////////////////////////////////////////////////////////
-
-
+// Original FreeGLUT framework by Song Ho Ahn (song.ahn@gmail.com)
+// Reverse engineering, conversion, and updating:
+// Finn Sinclair (fns2@illinois.edu)
+// Joseph Ravichandran (jpr3@illinois.edu)
 
 // in order to get function prototypes from glext.h, define GL_GLEXT_PROTOTYPES before including glext.h
 #define GL_GLEXT_PROTOTYPES
