@@ -1,8 +1,6 @@
-## visual_postprocessing
+## Visual Post-Processing Pipeline
 
-Part of the ILLIXR performance profiling project.
-Finn Sinclair and Joseph Ravichandran
-2019, University of Illinois
+Part of ILLIXR, the Illinios Extended Reality Benchmark Suite. This repo contains code for lens distortion correction, chromatic aberration correction, and timewarp.
 
 Some of the FBO intialization code is borrowed from
 Song Ho Ahn's excellent tutorial series. The particular
