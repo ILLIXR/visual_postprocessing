@@ -1,6 +1,6 @@
 ## Visual Post-Processing Pipeline
 
-Part of ILLIXR, the Illinios Extended Reality Benchmark Suite. This repo contains code for lens distortion correction, chromatic aberration correction, and timewarp.
+Part of [ILLIXR](https://github.com/ILLIXR/ILLIXR), the Illinios Extended Reality Benchmark Suite. This repo contains code for lens distortion correction, chromatic aberration correction, and timewarp.
 
 Some of the FBO intialization code is borrowed from
 Song Ho Ahn's excellent tutorial series. The particular
