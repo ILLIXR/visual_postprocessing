@@ -513,7 +513,7 @@ int main(int argc, char **argv)
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 2, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
     
     // Unbind the texture, we'll re-bind it later when we perform the distortion
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
@@ -836,7 +836,7 @@ void initGL()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
     //glBindBuffer(GL_TEXTURE_2D, prerendered_image_tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, prerendered_image->width, prerendered_image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, prerendered_image->texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, prerendered_image->width, prerendered_image->height, 0, GL_RGB, GL_UNSIGNED_BYTE, prerendered_image->texture);
 
     return;
 
