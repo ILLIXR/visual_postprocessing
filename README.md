@@ -10,4 +10,4 @@ The image loader is based on Morten Nobel-Jørgensen's blog post: https://blog.n
 
 Compile on Linux with the included makefile. Run with `./fbo <input image>`
 
-We provide two examples, landscape.png and museum.png, but any PNG image should work.
+We provide three examples, landscape.png, museum.png, and tundra.png, but any PNG image should work.
