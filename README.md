@@ -9,5 +9,4 @@ http://www.songho.ca/opengl/gl_fbo.html
 
 ## Compilation
 
-Compile on Linux with the included makefile.
-Run with ./fbo and the desired background image.
+Compile on Linux with the included makefile. Run with `./fbo <input image>`
