@@ -18,7 +18,7 @@
  * Sets outWidth and outHeight to image dimensions
  * Allocates a GLubyte array, and sets outData to point to the newly created array
  */
-bool load_png (const char* filename, int& outWidth, int& outHeight, GLubyte **outData) {
+bool load_png (const char* filename, int& outWidth, int& outHeight, bool &outHasAlpha, GLubyte **outData) {
     png_structp png_ptr;
     png_infop info_ptr;
     unsigned int sig_read = 0;
@@ -112,7 +112,9 @@ bool load_png (const char* filename, int& outWidth, int& outHeight, GLubyte **ou
                  &interlace_type, NULL, NULL);
     outWidth = width;
     outHeight = height;
-    
+    // Whether this is color or grayscale, if alpha channel exists, return true here:
+    outHasAlpha = color_type & (PNG_COLOR_MASK_ALPHA);
+
     unsigned int row_bytes = png_get_rowbytes(png_ptr, info_ptr);
     *outData = (unsigned char*) malloc(row_bytes * outHeight);
     
@@ -141,6 +143,7 @@ Image::Image() {
     this->filename = NULL;
     this->width = 0;
     this->height = 0;
+    this->hasAlpha = false;
     this->texture = NULL;
 }
 
@@ -148,14 +151,16 @@ Image::Image(const char* filename) : filename(filename) {
     this->width = 0;
     this->height = 0;
     this->texture = NULL;
+    this->hasAlpha = false;
 
-    if (!load_png(filename, this->width, this->height, &(this->texture))) {
+    if (!load_png(filename, this->width, this->height, this->hasAlpha, &(this->texture))) {
         // An error occurred, try to free the buffer if it was allocated,
         // and set the image to be uninitialized
         free(this->texture);
         this->texture = NULL;
         this->width = 0;
         this->height = 0;
+        this->hasAlpha = false;
 
         fprintf(stderr, "Error loading file %s\n", filename);
     }
@@ -165,7 +170,9 @@ Image::~Image() {
     // Try to free the allocated memory
     if (texture != NULL)
         free(texture);
+    // Set the image parameters such that any code using this object should become a NOP
     this->texture = NULL;
     this->width = 0;
     this->height = 0;
+    this->hasAlpha = false;
 }
