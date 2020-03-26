@@ -7,6 +7,8 @@ Song Ho Ahn's excellent tutorial series. The particular
 FBO code used is found at his website,
 http://www.songho.ca/opengl/gl_fbo.html
 
-## Compilation
+## Compiling and Running
 
 Compile on Linux with the included makefile. Run with `./fbo <input image>`
+
+We provide two examples, landscape.png and museum.png, but any PNG image should work.
