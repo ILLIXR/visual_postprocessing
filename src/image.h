@@ -4,6 +4,7 @@
 class Image {
 public:
     int width, height;
+    bool hasAlpha;
     GLubyte* texture;
     const char* filename;
 

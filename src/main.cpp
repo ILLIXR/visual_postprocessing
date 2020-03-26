@@ -836,7 +836,14 @@ void initGL()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
     //glBindBuffer(GL_TEXTURE_2D, prerendered_image_tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, prerendered_image->width, prerendered_image->height, 0, GL_RGB, GL_UNSIGNED_BYTE, prerendered_image->texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, 
+        prerendered_image->hasAlpha ? GL_RGBA : GL_RGB, 
+        prerendered_image->width, 
+        prerendered_image->height, 
+        0, 
+        prerendered_image->hasAlpha ? GL_RGBA : GL_RGB,
+        GL_UNSIGNED_BYTE, 
+        prerendered_image->texture);
 
     return;
 
