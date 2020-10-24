@@ -94,9 +94,10 @@ bool fboSupported;
 bool fboUsed;
 int fboSampleCount;
 int drawMode;
-Timer timer, t1;
+Timer timer, tApp, tWarp;
 float playTime;                     // to compute rotation angle
 float renderToTextureTime;          // elapsed time for render-to-texture
+float timewarpTime;                 // elapsed time for timewarp
 
 
 // Global HMD and body information
@@ -860,7 +861,7 @@ bool initSharedMem(const char* fname)
 
     fboId = rboColorId = rboDepthId = textureId = 0;
     fboSupported = fboUsed = false;
-    playTime = renderToTextureTime = 0;
+    playTime = renderToTextureTime = timewarpTime = 0;
 
     // Generate reference HMD and physical body dimensions
     GetDefaultHmdInfo(SCREEN_WIDTH, SCREEN_HEIGHT, &hmd_info);
@@ -1328,7 +1329,7 @@ void displayCB()
     playTime = (float)timer.getElapsedTime();
 
     // render to texture //////////////////////////////////////////////////////
-    t1.start();
+    tApp.start();
 
     // with FBO
     // render directly to a texture
@@ -1375,12 +1376,13 @@ void displayCB()
     glBindTexture(GL_TEXTURE_2D, 0);*/
 
     // measure the elapsed time of render-to-texture
-    t1.stop();
-    renderToTextureTime = t1.getElapsedTimeInMilliSec();
+    tApp.stop();
+    renderToTextureTime = tApp.getElapsedTimeInMilliSec();
     ///////////////////////////////////////////////////////////////////////////
 
 
     // rendering as normal ////////////////////////////////////////////////////
+    tWarp.start();
 
     // Render to screen viewport
     glViewport(0, 0, screenWidth, screenHeight);
@@ -1482,6 +1484,12 @@ void displayCB()
             printf("displayCB, error after drawElements, %x", err);
         }
     }
+
+    tWarp.stop();
+    timewarpTime = tWarp.getElapsedTimeInMilliSec();
+
+    printf("App time = %f\n", renderToTextureTime);
+    printf("Warp time = %f\n", timewarpTime);
 
     glutSwapBuffers();
 }
