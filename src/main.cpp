@@ -67,13 +67,13 @@ std::string getRenderbufferParameters(GLuint id);
 
 
 // constants
-const int   SCREEN_WIDTH    = 448*2;
-const int   SCREEN_HEIGHT   = 320*2;
+const int   SCREEN_WIDTH    = 2560;
+const int   SCREEN_HEIGHT   = 1440;
 const float CAMERA_DISTANCE = 6.0f;
 const int   TEXT_WIDTH      = 8;
 const int   TEXT_HEIGHT     = 13;
-const int   TEXTURE_WIDTH   = 1024;  // NOTE: texture size cannot be larger than
-const int   TEXTURE_HEIGHT  = 1024;  // the rendering window size in non-FBO mode
+const int   TEXTURE_WIDTH   = 2560;  // NOTE: texture size cannot be larger than
+const int   TEXTURE_HEIGHT  = 1440;  // the rendering window size in non-FBO mode
 const int   NUM_EYES        = 2;
 const int   NUM_COLOR_CHANNELS = 3;
 
