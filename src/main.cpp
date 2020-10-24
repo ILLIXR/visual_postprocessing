@@ -202,66 +202,66 @@ const char* const timeWarpSpatialFragmentProgramGLSL =
     "}\n";
 
 const char* const timeWarpChromaticVertexProgramGLSL =
-	"#version " GLSL_VERSION "\n"
-	"uniform highp mat3x4 TimeWarpStartTransform;\n"
-	"uniform highp mat3x4 TimeWarpEndTransform;\n"
-	"in highp vec3 vertexPosition;\n"
-	"in highp vec2 vertexUv0;\n"
-	"in highp vec2 vertexUv1;\n"
-	"in highp vec2 vertexUv2;\n"
-	"out mediump vec2 fragmentUv0;\n"
-	"out mediump vec2 fragmentUv1;\n"
-	"out mediump vec2 fragmentUv2;\n"
-	"out gl_PerVertex { vec4 gl_Position; };\n"
-	"void main( void )\n"
-	"{\n"
-	"	gl_Position = vec4( vertexPosition, 1.0 );\n"
-	"\n"
-	"	float displayFraction = vertexPosition.x * 0.5 + 0.5;\n"	// landscape left-to-right
-	"\n"
-	"	vec3 startUv0 = vec4( vertexUv0, -1, 1 ) * TimeWarpStartTransform;\n"
-	"	vec3 startUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpStartTransform;\n"
-	"	vec3 startUv2 = vec4( vertexUv2, -1, 1 ) * TimeWarpStartTransform;\n"
-	"\n"
-	"	vec3 endUv0 = vec4( vertexUv0, -1, 1 ) * TimeWarpEndTransform;\n"
-	"	vec3 endUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpEndTransform;\n"
-	"	vec3 endUv2 = vec4( vertexUv2, -1, 1 ) * TimeWarpEndTransform;\n"
-	"\n"
-	"	vec3 curUv0 = mix( startUv0, endUv0, displayFraction );\n"
-	"	vec3 curUv1 = mix( startUv1, endUv1, displayFraction );\n"
-	"	vec3 curUv2 = mix( startUv2, endUv2, displayFraction );\n"
-	"\n"
-	"	fragmentUv0 = curUv0.xy * ( 1.0 / max( curUv0.z, 0.00001 ) );\n"
-	"	fragmentUv1 = curUv1.xy * ( 1.0 / max( curUv1.z, 0.00001 ) );\n"
-	"	fragmentUv2 = curUv2.xy * ( 1.0 / max( curUv2.z, 0.00001 ) );\n"
-	"}\n";
+  "#version " GLSL_VERSION "\n"
+  "uniform highp mat3x4 TimeWarpStartTransform;\n"
+  "uniform highp mat3x4 TimeWarpEndTransform;\n"
+  "in highp vec3 vertexPosition;\n"
+  "in highp vec2 vertexUv0;\n"
+  "in highp vec2 vertexUv1;\n"
+  "in highp vec2 vertexUv2;\n"
+  "out mediump vec2 fragmentUv0;\n"
+  "out mediump vec2 fragmentUv1;\n"
+  "out mediump vec2 fragmentUv2;\n"
+  "out gl_PerVertex { vec4 gl_Position; };\n"
+  "void main( void )\n"
+  "{\n"
+  " gl_Position = vec4( vertexPosition, 1.0 );\n"
+  "\n"
+  " float displayFraction = vertexPosition.x * 0.5 + 0.5;\n"  // landscape left-to-right
+  "\n"
+  " vec3 startUv0 = vec4( vertexUv0, -1, 1 ) * TimeWarpStartTransform;\n"
+  " vec3 startUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpStartTransform;\n"
+  " vec3 startUv2 = vec4( vertexUv2, -1, 1 ) * TimeWarpStartTransform;\n"
+  "\n"
+  " vec3 endUv0 = vec4( vertexUv0, -1, 1 ) * TimeWarpEndTransform;\n"
+  " vec3 endUv1 = vec4( vertexUv1, -1, 1 ) * TimeWarpEndTransform;\n"
+  " vec3 endUv2 = vec4( vertexUv2, -1, 1 ) * TimeWarpEndTransform;\n"
+  "\n"
+  " vec3 curUv0 = mix( startUv0, endUv0, displayFraction );\n"
+  " vec3 curUv1 = mix( startUv1, endUv1, displayFraction );\n"
+  " vec3 curUv2 = mix( startUv2, endUv2, displayFraction );\n"
+  "\n"
+  " fragmentUv0 = curUv0.xy * ( 1.0 / max( curUv0.z, 0.00001 ) );\n"
+  " fragmentUv1 = curUv1.xy * ( 1.0 / max( curUv1.z, 0.00001 ) );\n"
+  " fragmentUv2 = curUv2.xy * ( 1.0 / max( curUv2.z, 0.00001 ) );\n"
+  "}\n";
 
 const char* const timeWarpChromaticFragmentProgramGLSL =
-	"#version " GLSL_VERSION "\n"
-	"uniform int ArrayLayer;\n"
-	"uniform highp sampler2DArray Texture;\n"
-	"in mediump vec2 fragmentUv0;\n"
-	"in mediump vec2 fragmentUv1;\n"
-	"in mediump vec2 fragmentUv2;\n"
-	"out lowp vec4 outColor;\n"
-	"void main()\n"
-	"{\n"
-	"	outColor.r = texture( Texture, vec3( fragmentUv0, ArrayLayer ) ).r;\n"
-	"	outColor.g = texture( Texture, vec3( fragmentUv1, ArrayLayer ) ).g;\n"
-	"	outColor.b = texture( Texture, vec3( fragmentUv2, ArrayLayer ) ).b;\n"
-	"	outColor.a = 1.0;\n"
-	"}\n";
+  "#version " GLSL_VERSION "\n"
+  "uniform int ArrayLayer;\n"
+  "uniform highp sampler2DArray Texture;\n"
+  "in mediump vec2 fragmentUv0;\n"
+  "in mediump vec2 fragmentUv1;\n"
+  "in mediump vec2 fragmentUv2;\n"
+  "out lowp vec4 outColor;\n"
+  "void main()\n"
+  "{\n"
+  " outColor.r = texture( Texture, vec3( fragmentUv0, ArrayLayer ) ).r;\n"
+  " outColor.g = texture( Texture, vec3( fragmentUv1, ArrayLayer ) ).g;\n"
+  " outColor.b = texture( Texture, vec3( fragmentUv2, ArrayLayer ) ).b;\n"
+  " outColor.a = 1.0;\n"
+  "}\n";
 
 const char* const timeWarpChromaticFragmentDebugProgramGLSL =
-	"#version " GLSL_VERSION "\n"
-	"uniform int ArrayLayer;\n"
-	"uniform highp sampler2DArray Texture;\n"
-	"in mediump vec2 fragmentUv0;\n"
-	"in mediump vec2 fragmentUv1;\n"
-	"in mediump vec2 fragmentUv2;\n"
-	"out lowp vec4 outColor;\n"
-	"void main()\n"
-	"{\n"
+  "#version " GLSL_VERSION "\n"
+  "uniform int ArrayLayer;\n"
+  "uniform highp sampler2DArray Texture;\n"
+  "in mediump vec2 fragmentUv0;\n"
+  "in mediump vec2 fragmentUv1;\n"
+  "in mediump vec2 fragmentUv2;\n"
+  "out lowp vec4 outColor;\n"
+  "void main()\n"
+  "{\n"
     "   float chess0 = floor(fragmentUv0.x * 5.0) + floor(fragmentUv0.y * 5.0);"
     "   chess0 = fract(chess0 * 0.5);"
     "   float chess1 = floor(fragmentUv1.x * 5.0) + floor(fragmentUv1.y * 5.0);"
@@ -273,7 +273,7 @@ const char* const timeWarpChromaticFragmentDebugProgramGLSL =
     "   outColor.b = chess2;\n"
     "   if(fragmentUv0.x > 1.0 || fragmentUv0.x < 0.0 || fragmentUv0.y > 1.0 || fragmentUv0.y < 0.0)\n"
     "       outColor = vec4(vec3(0.0), 1.0);\n"
-	"}\n";
+  "}\n";
 
 const char* const basicVertexShader =
         "#version " GLSL_VERSION "\n"
@@ -303,11 +303,11 @@ const char* const basicFragmentShader =
 GLfloat cube_vertices[24] = {  // Coordinates for the vertices of a cube.
            1,1,1,   1,1,-1,   1,-1,-1,   1,-1,1,
           -1,1,1,  -1,1,-1,  -1,-1,-1,  -1,-1,1  };
-          
+
 GLfloat cube_colors[24] = {  // An RGB color value for each vertex
            1,1,1,   1,0,0,   1,1,0,   0,1,0,
            0,0,1,   1,0,1,   0,0,0,   0,1,1  };
-          
+
 GLuint cube_indices[24] = {  // Vertex number for the six faces.
           0,1,2,3, 0,3,7,4, 0,4,5,1,
           6,2,1,5, 6,5,4,7, 6,7,3,2  };
@@ -315,11 +315,11 @@ GLuint cube_indices[24] = {  // Vertex number for the six faces.
 GLfloat plane_vertices[8] = {  // Coordinates for the vertices of a plane.
          -1, 1,   1, 1,
           -1, -1,   1, -1 };
-          
+
 GLfloat plane_uvs[8] = {  // UVs for plane
           0, 1,   1, 1,
           0, 0,   1, 0 };
-          
+
 GLuint plane_indices[6] = {  // Plane indices
           0,2,3, 1,0,3 };
 
@@ -411,7 +411,7 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
             distortion_indices[offset + 5] = (GLuint)( ( y + 1 ) * ( hmdInfo->eyeTilesWide + 1 ) + ( x + 1 ) );
         }
     }
-    
+
     // Allocate memory for the distortion coordinates.
     // These are NOT the actual distortion mesh's vertices,
     // they are calculated distortion grid coefficients
@@ -434,7 +434,7 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
         distortion_uv1 = (uv_coord_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(uv_coord_t));
         distortion_uv2 = (uv_coord_t *) malloc(NUM_EYES * num_distortion_vertices * sizeof(uv_coord_t));
     }
-    
+
     for ( int eye = 0; eye < NUM_EYES; eye++ )
     {
         for ( int y = 0; y <= hmdInfo->eyeTilesHigh; y++ )
@@ -457,7 +457,6 @@ void BuildTimewarp(hmd_info_t* hmdInfo){
                 distortion_uv1[eye * num_distortion_vertices + index].v = distort_coords[eye][1][index].y;
                 distortion_uv2[eye * num_distortion_vertices + index].u = distort_coords[eye][2][index].x;
                 distortion_uv2[eye * num_distortion_vertices + index].v = distort_coords[eye][2][index].y;
-                
             }
         }
     }
@@ -502,7 +501,6 @@ int main(int argc, char **argv)
     glGenTextures(1, &textureId);
     glBindTexture(GL_TEXTURE_2D_ARRAY, textureId);
 
-    
     // Set the texture parameters for the texture that the FBO will be
     // mapped into.
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 0);
@@ -514,7 +512,7 @@ int main(int argc, char **argv)
     //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB8, TEXTURE_WIDTH, TEXTURE_HEIGHT, 2, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-    
+
     // Unbind the texture, we'll re-bind it later when we perform the distortion
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
@@ -572,7 +570,6 @@ int main(int argc, char **argv)
     // Unbind the framebuffer, so the distortion can render
     // to the main framebuffer (aka, the screen)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    
 
     // start timer
     timer.start();
@@ -659,9 +656,8 @@ GLuint init_and_link_shader (const char* vertex_shader, const char* fragment_sha
         GLsizei length;
         glGetShaderInfoLog( fragment_shader_handle, sizeof( msg ), &length, msg );
         printf( "2 Error: %s\n", msg);
-        
     }
-    
+
     // Create program and link shaders
     shader_program = glCreateProgram();
     glAttachShader(shader_program, vertex_shader_handle);
@@ -707,7 +703,7 @@ GLuint init_and_link_shader (const char* vertex_shader, const char* fragment_sha
  *
  * Initializes, links, and compiles relevant shaders
  * Initializes various VBOs for use in the timewarp distortion shader
- * 
+ *
  */
 void initGL()
 {
@@ -728,8 +724,6 @@ void initGL()
     // online as to why and how this is needed.
     glGenVertexArrays(1, &tw_vao);
     glBindVertexArray(tw_vao);
-
-    
 
     ///////////////////////////////////////////////////////
     // Create and compile timewarp distortion vertex shader
@@ -836,13 +830,13 @@ void initGL()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
     //glBindBuffer(GL_TEXTURE_2D, prerendered_image_tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, 
-        prerendered_image->hasAlpha ? GL_RGBA : GL_RGB, 
-        prerendered_image->width, 
-        prerendered_image->height, 
-        0, 
+    glTexImage2D(GL_TEXTURE_2D, 0,
         prerendered_image->hasAlpha ? GL_RGBA : GL_RGB,
-        GL_UNSIGNED_BYTE, 
+        prerendered_image->width,
+        prerendered_image->height,
+        0,
+        prerendered_image->hasAlpha ? GL_RGBA : GL_RGB,
+        GL_UNSIGNED_BYTE,
         prerendered_image->texture);
 
     return;
@@ -1335,7 +1329,7 @@ void displayCB()
 
     // render to texture //////////////////////////////////////////////////////
     t1.start();
-    
+
     // with FBO
     // render directly to a texture
     // set the rendering destination to FBO
@@ -1349,7 +1343,7 @@ void displayCB()
     //glClearColor(1, 0, 1, 1);
     //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(basic_shader_program);
-    
+
     ////////////////////////////////////////////////////////////////////////
     // DRAW SOMETHING TO BOUND FBO!
 
@@ -1362,7 +1356,7 @@ void displayCB()
 
     // Draw basic plane to put something in the FBO for testing
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
-    
+
     ////////////////////////////////////////////////////////////////////////
 
     // back to normal window-system-provided framebuffer
