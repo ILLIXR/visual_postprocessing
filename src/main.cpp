@@ -1340,9 +1340,6 @@ void displayCB()
         printf("displayCB, error after binding FBO for render");
     }
 
-    // clear buffer
-    //glClearColor(1, 0, 1, 1);
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(basic_shader_program);
 
     ////////////////////////////////////////////////////////////////////////
@@ -1358,7 +1355,14 @@ void displayCB()
     // Draw basic plane to put something in the FBO for testing
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 
+    // measure the elapsed time of render-to-texture
+    glFlush();
+    tApp.stop();
+    renderToTextureTime = tApp.getElapsedTimeInMilliSec();
+
     ////////////////////////////////////////////////////////////////////////
+    // rendering as normal /////////////////////////////////////////////////
+    tWarp.start();
 
     // back to normal window-system-provided framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // unbind
@@ -1375,14 +1379,7 @@ void displayCB()
     glGenerateMipmap(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);*/
 
-    // measure the elapsed time of render-to-texture
-    tApp.stop();
-    renderToTextureTime = tApp.getElapsedTimeInMilliSec();
     ///////////////////////////////////////////////////////////////////////////
-
-
-    // rendering as normal ////////////////////////////////////////////////////
-    tWarp.start();
 
     // Render to screen viewport
     glViewport(0, 0, screenWidth, screenHeight);
@@ -1485,6 +1482,7 @@ void displayCB()
         }
     }
 
+    glFlush();
     tWarp.stop();
     timewarpTime = tWarp.getElapsedTimeInMilliSec();
 
