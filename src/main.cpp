@@ -1356,9 +1356,9 @@ void displayCB()
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 
     // measure the elapsed time of render-to-texture
-    glFlush();
     tApp.stop();
     renderToTextureTime = tApp.getElapsedTimeInMilliSec();
+    printf("App time = %f\n", renderToTextureTime);
 
     ////////////////////////////////////////////////////////////////////////
     // rendering as normal /////////////////////////////////////////////////
@@ -1482,11 +1482,8 @@ void displayCB()
         }
     }
 
-    glFlush();
     tWarp.stop();
     timewarpTime = tWarp.getElapsedTimeInMilliSec();
-
-    printf("App time = %f\n", renderToTextureTime);
     printf("Warp time = %f\n", timewarpTime);
 
     glutSwapBuffers();
